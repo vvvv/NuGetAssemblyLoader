@@ -537,10 +537,22 @@ namespace NuGetAssemblyLoader
                 if (_frameworkName == null)
                 {
                     var tfn = AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName;
-                    _frameworkName = new FrameworkName(tfn);
+                    if (tfn != null)
+                        _frameworkName = new FrameworkName(tfn);
+                    else // TargetFrameworkName is null when CLR was created by custom host (CorBindToRuntimeEx)
+                        _frameworkName = new FrameworkName(".NETFramework", GetClrVersion());
                 }
                 return _frameworkName;
             }
+            set { _frameworkName = value; }
+        }
+
+        static Version GetClrVersion()
+        {
+            // Will probably only work for .NET 4.5 and up :/
+            var versionInfo = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
+            var buildNumer = int.Parse(versionInfo.FileBuildPart.ToString().Substring(0, 1));
+            return new Version(versionInfo.FileMajorPart, versionInfo.FileMinorPart, buildNumer);
         }
 
         public static void AddPackageRepositories(params string[] packageRepositories)
