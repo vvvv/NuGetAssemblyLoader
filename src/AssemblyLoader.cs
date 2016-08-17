@@ -463,12 +463,9 @@ namespace NuGetAssemblyLoader
         {
             if (!AddedPackages.Add(package)) return;
 
-            var libNativePath = Path.Combine(package.GetPathOfPackage(), "lib-native");
-            if (Directory.Exists(libNativePath))
-            {
-                var architecture = Environment.Is64BitProcess ? "x64" : "x86";
-                AddToPath(Path.Combine(libNativePath, architecture));
-            }
+            var nativeFile = package.GetFiles(Path.Combine("lib-native", Environment.Is64BitProcess ? "x64" : "x86")).OfType<PhysicalPackageFile>().FirstOrDefault();
+            if (nativeFile != null)
+                AddToPath(Path.GetDirectoryName(nativeFile.SourcePath));
         }
     }
 
