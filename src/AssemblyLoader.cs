@@ -323,10 +323,15 @@ namespace NuGetAssemblyLoader
             {
                 foreach (var nupkgFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.PackageExtension}"))
                 {
+                    IPackage pkg;
                     if (dir.StartsWith("SharpDX"))
-                        yield return new SpecialInstalledPackage(_fileSystem, dir, nupkgFile, @"Bin\DirectX11-Signed-net40");
+                        pkg = new SpecialInstalledPackage(_fileSystem, dir, nupkgFile, @"Bin\DirectX11-Signed-net40");
                     else
-                        yield return new InstalledPackage(_fileSystem, dir, nupkgFile);
+                        pkg = new InstalledPackage(_fileSystem, dir, nupkgFile);
+                    if (pkg.MinClientVersion != null && Constants.NuGetVersion < pkg.MinClientVersion)
+                        Trace.TraceWarning($"Ignoring package {pkg} because it requires NuGet {pkg.MinClientVersion}");
+                    else
+                        yield return pkg;
                     break;
                 }
             }
