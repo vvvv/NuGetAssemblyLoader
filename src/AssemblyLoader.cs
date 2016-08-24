@@ -61,7 +61,7 @@ namespace NuGetAssemblyLoader
             get
             {
                 if (_files == null)
-                    _files = Builder.Files.OfType<PhysicalPackageFile>().ToList();
+                    _files = GetFilesCore().ToList();
                 return _files;
             }
         }
@@ -140,6 +140,32 @@ namespace NuGetAssemblyLoader
         public IEnumerable<IPackageFile> GetFiles()
         {
             return Files;
+        }
+
+        private IEnumerable<PhysicalPackageFile> GetFilesCore()
+        {
+            foreach (var file in Builder.Files.OfType<PhysicalPackageFile>())
+            {
+                if (file.IsAssemblyFile())
+                {
+                    var sourcePath = file.SourcePath;
+                    var sourceDir = System.IO.Path.GetDirectoryName(sourcePath);
+                    if (sourceDir.EndsWith("Release") || sourceDir.EndsWith("Debug"))
+                    {
+                        var fileName = System.IO.Path.GetFileName(sourcePath);
+                        var baseDir = System.IO.Path.GetDirectoryName(sourceDir);
+                        var debugFile = System.IO.Path.Combine(baseDir, "Debug", fileName);
+                        var releaseFile = System.IO.Path.Combine(baseDir, "Release", fileName);
+                        var debugTime = File.Exists(debugFile) ? File.GetCreationTime(debugFile) : DateTime.MinValue;
+                        var releaseTime = File.Exists(releaseFile) ? File.GetCreationTime(releaseFile) : DateTime.MinValue;
+                        if (releaseTime > debugTime)
+                            file.SourcePath = releaseFile;
+                        else if (debugTime > releaseTime)
+                            file.SourcePath = debugFile;
+                    }
+                }
+                yield return file;
+            }
         }
 
         public Stream GetStream()
