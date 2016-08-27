@@ -156,8 +156,8 @@ namespace NuGetAssemblyLoader
                         var baseDir = System.IO.Path.GetDirectoryName(sourceDir);
                         var debugFile = System.IO.Path.Combine(baseDir, "Debug", fileName);
                         var releaseFile = System.IO.Path.Combine(baseDir, "Release", fileName);
-                        var debugTime = File.Exists(debugFile) ? File.GetCreationTime(debugFile) : DateTime.MinValue;
-                        var releaseTime = File.Exists(releaseFile) ? File.GetCreationTime(releaseFile) : DateTime.MinValue;
+                        var debugTime = File.Exists(debugFile) ? File.GetLastWriteTime(debugFile) : DateTime.MinValue;
+                        var releaseTime = File.Exists(releaseFile) ? File.GetLastWriteTime(releaseFile) : DateTime.MinValue;
                         if (releaseTime > debugTime)
                             file.SourcePath = releaseFile;
                         else if (debugTime > releaseTime)
