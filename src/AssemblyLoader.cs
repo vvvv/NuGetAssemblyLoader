@@ -505,8 +505,9 @@ namespace NuGetAssemblyLoader
     {
         private const string ResourceAssemblyExtension = ".resources.dll";
         static readonly HashSet<IPackage> _cachedPackages = new HashSet<IPackage>();
-        static readonly Dictionary<string, string> _assemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<string, string> _packageAssemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, KeyValuePair<string, IPackage>> _fileCache = new Dictionary<string, KeyValuePair<string, IPackage>>(StringComparer.OrdinalIgnoreCase);
+        static Dictionary<string, Assembly> _loadedAssemblyCache;
         static readonly List<string> _packageRepositories = new List<string>();
         static PreferSourceOverInstalledAggregateRepository _repository;
         static FrameworkName _frameworkName;
@@ -519,8 +520,31 @@ namespace NuGetAssemblyLoader
             AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
         }
 
+        static Dictionary<string, Assembly> LoadedAssemblyCache
+        {
+            get
+            {
+                if (_loadedAssemblyCache == null)
+                {
+                    var result = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        var assemblyName = assembly.GetName();
+                        var localPath = GetLocalPath(assemblyName);
+                        if (!string.IsNullOrEmpty(localPath))
+                            result.Add(assemblyName.Name, assembly);
+                    }
+                    _loadedAssemblyCache = result;
+                }
+                return _loadedAssemblyCache;
+            }
+        }
+
         private static void CurrentDomain_AssemblyLoad(object sender, AssemblyLoadEventArgs args)
         {
+            // Invalidate cache
+            _loadedAssemblyCache = null;
+
             var assembly = args.LoadedAssembly;
             if (assembly.GlobalAssemblyCache || assembly.IsDynamic) return;
 
@@ -624,7 +648,7 @@ namespace NuGetAssemblyLoader
 
         private static void CacheFiles(IPackageRepository repository)
         {
-            lock (_assemblyCache)
+            lock (_packageAssemblyCache)
             {
                 lock (_fileCache)
                 {
@@ -651,8 +675,8 @@ namespace NuGetAssemblyLoader
             foreach (var assemblyFile in package.GetCompatibleAssemblyFiles())
             {
                 var assemblyName = Path.GetFileNameWithoutExtension(assemblyFile.Name);
-                if (!_assemblyCache.ContainsKey(assemblyName))
-                    _assemblyCache.Add(assemblyName, assemblyFile.SourcePath);
+                if (!_packageAssemblyCache.ContainsKey(assemblyName))
+                    _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
             }
         }
 
@@ -697,11 +721,17 @@ namespace NuGetAssemblyLoader
 
         public static string FindAssemblyFile(string assemblyName)
         {
+            // Check the loaded assemblies of the CLR host first - we don't want a mix of assemblies in Load and LoadFrom context from different locations!
+            Assembly loadedAssembly;
+            if (LoadedAssemblyCache.TryGetValue(assemblyName, out loadedAssembly))
+                return GetLocalPath(loadedAssembly.GetName());
+
+            // Check our packages
             string result;
             EnsureValidCache();
-            lock (_assemblyCache)
+            lock (_packageAssemblyCache)
             {
-                if (!_assemblyCache.TryGetValue(assemblyName, out result))
+                if (!_packageAssemblyCache.TryGetValue(assemblyName, out result))
                 {
                     foreach (var package in GetAllPackages(assemblyName))
                     {
@@ -709,10 +739,28 @@ namespace NuGetAssemblyLoader
                         if (result != null)
                             break;
                     }
-                    _assemblyCache.Add(assemblyName, result);
+                    _packageAssemblyCache.Add(assemblyName, result);
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Returns the CodeBase of the named assembly (which is a URL), except if the URL has the file scheme.
+        /// In that case the URL is converted to a local file path that can be used by System.IO.Path methods.
+        /// </summary>
+        /// <remarks>Taken from https://ccimetadata.codeplex.com </remarks>
+        /// <param name="assemblyName">The name of the assembly whose location is desired.</param>
+        public static string GetLocalPath(AssemblyName assemblyName)
+        {
+            var loc = assemblyName.CodeBase;
+            if (loc == null) loc = "";
+            if (loc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                Uri u = new Uri(loc, UriKind.Absolute);
+                loc = u.LocalPath;
+            }
+            return loc;
         }
 
         public static string FindAssemblyFile(IPackage package, string assemblyName)
