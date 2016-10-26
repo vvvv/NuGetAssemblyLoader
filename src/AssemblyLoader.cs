@@ -532,7 +532,14 @@ namespace NuGetAssemblyLoader
                         var assemblyName = assembly.GetName();
                         var localPath = GetLocalPath(assemblyName);
                         if (!string.IsNullOrEmpty(localPath))
-                            result.Add(assemblyName.Name, assembly);
+                        {
+                            Assembly existing;
+                            var key = assemblyName.Name;
+                            if (result.TryGetValue(key, out existing) && assemblyName.Version > existing.GetName().Version)
+                                result[key] = assembly;
+                            else
+                                result.Add(key, assembly);
+                        }
                     }
                     _loadedAssemblyCache = result;
                 }
