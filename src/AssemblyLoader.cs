@@ -774,8 +774,19 @@ namespace NuGetAssemblyLoader
         {
             IEnumerable<PhysicalPackageAssemblyReference> files = package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>();
             IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles;
-            if (!VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
-                compatibleFiles = files;
+            // Try from most specific to least specific target framework
+            var result = default(string);
+            if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
+                result = FindAssemblyFile(assemblyName, compatibleFiles);
+            if (result == null && VersionUtility.TryGetCompatibleItems(VersionUtility.DefaultTargetFramework, files, out compatibleFiles))
+                result = FindAssemblyFile(assemblyName, compatibleFiles);
+            if (result == null)
+                result = FindAssemblyFile(assemblyName, files);
+            return result;
+        }
+
+        private static string FindAssemblyFile(string assemblyName, IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles)
+        {
             return compatibleFiles.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f.Name) == assemblyName)?.SourcePath;
         }
 
