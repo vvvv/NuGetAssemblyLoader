@@ -77,7 +77,7 @@ namespace NuGetAssemblyLoader
                     {
                         _builder = new PackageBuilder(path, NullPropertyProvider.Instance, false);
                     }
-                    catch (FileNotFoundException e)
+                    catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
                     {
                         // Create a dummy
                         _builder = new PackageBuilder();
