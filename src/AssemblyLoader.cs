@@ -188,7 +188,7 @@ namespace NuGetAssemblyLoader
     {
         readonly DirectoryInfo _repositoryFolder;
         readonly IFileSystem _fileSystem;
-        List<IPackage> _packages;
+        IQueryable<IPackage> _packages;
 
         public SrcPackageRepository(DirectoryInfo repositoryFolder)
         {
@@ -210,8 +210,8 @@ namespace NuGetAssemblyLoader
             get
             {
                 if (_packages == null)
-                    _packages = GetPackagesCore().ToList();
-                return _packages.AsQueryable();
+                    _packages = GetPackagesCore().ToList().AsQueryable();
+                return _packages;
             }
         }
 
@@ -327,7 +327,7 @@ namespace NuGetAssemblyLoader
     public class InstalledPackageRepository : PackageRepositoryBase
     {
         readonly IFileSystem _fileSystem;
-        List<IPackage> _packages;
+        IQueryable<IPackage> _packages;
 
         public InstalledPackageRepository(DirectoryInfo repositoryFolder)
         {
@@ -339,8 +339,8 @@ namespace NuGetAssemblyLoader
         public override IQueryable<IPackage> GetPackages()
         {
             if (_packages == null)
-                _packages = GetPackagesCore().ToList();
-            return _packages.AsQueryable();
+                _packages = GetPackagesCore().ToList().AsQueryable();
+            return _packages;
         }
 
         private IEnumerable<IPackage> GetPackagesCore()
