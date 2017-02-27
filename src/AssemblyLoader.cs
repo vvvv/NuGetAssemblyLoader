@@ -111,7 +111,7 @@ namespace NuGetAssemblyLoader
         public ICollection<PackageReferenceSet> PackageAssemblyReferences => Builder.PackageAssemblyReferences;
         public IEnumerable<PackageDependencySet> DependencySets => Builder.DependencySets;
         public Version MinClientVersion => Builder.MinClientVersion;
-        public string Id => Builder.Id ?? _packageName;
+        public string Id => _packageName;
         public SemanticVersion Version => Builder.Version ?? new SemanticVersion(0, 0, 0, 0);
         public Uri ReportAbuseUrl => null;
         public int DownloadCount => -1;
