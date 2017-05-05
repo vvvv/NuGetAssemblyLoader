@@ -589,6 +589,20 @@ namespace NuGetAssemblyLoader
             }
         }
 
+        static readonly Dictionary<string, IPackage> _packages = new Dictionary<string, IPackage>();
+
+        // Repository.FindPackage is incredibly slow (~15ms for each query)
+        public static IPackage FindPackageAndCacheResult(string id)
+        {
+            IPackage result;
+            if (!_packages.TryGetValue(id, out result))
+            {
+                result = Repository.FindPackage(id);
+                _packages.Add(id, result);
+            }
+            return result;
+        }
+
         public static FrameworkName ExecutingFrameworkName
         {
             get
