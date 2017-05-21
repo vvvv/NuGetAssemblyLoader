@@ -539,6 +539,9 @@ namespace NuGetAssemblyLoader
                                 result[key] = assembly;
                             else
                                 result[key] = assembly;
+                            var fileName = Path.GetFileName(localPath);
+                            if (!result.ContainsKey(fileName))
+                                result[fileName] = assembly;
                         }
                     }
                     _loadedAssemblyCache = result;
@@ -695,6 +698,8 @@ namespace NuGetAssemblyLoader
             }
             foreach (var assemblyFile in package.GetCompatibleAssemblyFiles())
             {
+                if (!_packageAssemblyCache.ContainsKey(assemblyFile.Name))
+                    _packageAssemblyCache.Add(assemblyFile.Name, assemblyFile.SourcePath);
                 var assemblyName = Path.GetFileNameWithoutExtension(assemblyFile.Name);
                 if (!_packageAssemblyCache.ContainsKey(assemblyName))
                     _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
@@ -748,22 +753,14 @@ namespace NuGetAssemblyLoader
                 return GetLocalPath(loadedAssembly.GetName());
 
             // Check our packages
-            string result;
             EnsureValidCache();
             lock (_packageAssemblyCache)
             {
-                if (!_packageAssemblyCache.TryGetValue(assemblyName, out result))
-                {
-                    foreach (var package in GetAllPackages(assemblyName))
-                    {
-                        result = FindAssemblyFile(package, assemblyName);
-                        if (result != null)
-                            break;
-                    }
-                    _packageAssemblyCache.Add(assemblyName, result);
-                }
+                string result;
+                if (_packageAssemblyCache.TryGetValue(assemblyName, out result))
+                    return result;
             }
-            return result;
+            return null;
         }
 
         /// <summary>
@@ -782,26 +779,6 @@ namespace NuGetAssemblyLoader
                 loc = u.LocalPath;
             }
             return loc;
-        }
-
-        public static string FindAssemblyFile(IPackage package, string assemblyName)
-        {
-            IEnumerable<PhysicalPackageAssemblyReference> files = package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>();
-            IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles;
-            // Try from most specific to least specific target framework
-            var result = default(string);
-            if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
-                result = FindAssemblyFile(assemblyName, compatibleFiles);
-            if (result == null && VersionUtility.TryGetCompatibleItems(VersionUtility.DefaultTargetFramework, files, out compatibleFiles))
-                result = FindAssemblyFile(assemblyName, compatibleFiles);
-            if (result == null)
-                result = FindAssemblyFile(assemblyName, files);
-            return result;
-        }
-
-        private static string FindAssemblyFile(string assemblyName, IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles)
-        {
-            return compatibleFiles.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f.Name) == assemblyName)?.SourcePath;
         }
 
         public static string FindFile(string fileName)
@@ -878,18 +855,12 @@ namespace NuGetAssemblyLoader
         public static IEnumerable<PhysicalPackageAssemblyReference> GetCompatibleAssemblyFiles(this IPackage package)
         {
             IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles;
-            if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>(), out compatibleFiles))
+            var files = package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>();
+            if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
                 return compatibleFiles;
-            return Enumerable.Empty<PhysicalPackageAssemblyReference>();
-        }
-
-        public static IEnumerable<PhysicalPackageFile> GetCompatibleImportFiles(this IPackage package)
-        {
-            var importFiles = package.GetFiles().OfType<PhysicalPackageFile>().Where(f => string.Equals(Path.GetExtension(f.Path), ".vlimport", StringComparison.OrdinalIgnoreCase));
-            IEnumerable<PhysicalPackageFile> compatibleFiles;
-            if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, importFiles, out compatibleFiles))
+            if (VersionUtility.TryGetCompatibleItems(VersionUtility.DefaultTargetFramework, files, out compatibleFiles))
                 return compatibleFiles;
-            return Enumerable.Empty<PhysicalPackageFile>();
+            return files;
         }
 
         public static string ReadArgument(this CustomAttributeData attribute, int index)
