@@ -327,11 +327,25 @@ namespace NuGetAssemblyLoader
     public class InstalledPackageRepository : PackageRepositoryBase
     {
         readonly IFileSystem _fileSystem;
+        readonly FileSystemWatcher _watcher;
         IQueryable<IPackage> _packages;
 
         public InstalledPackageRepository(DirectoryInfo repositoryFolder)
         {
             _fileSystem = new PhysicalFileSystem(repositoryFolder.FullName);
+            _watcher = new FileSystemWatcher(repositoryFolder.FullName);
+            _watcher.NotifyFilter = NotifyFilters.DirectoryName;
+            _watcher.Created += HandlePathChanged;
+            _watcher.Deleted += HandlePathChanged;
+            _watcher.Changed += HandlePathChanged;
+            _watcher.EnableRaisingEvents = true;
+        }
+
+        private void HandlePathChanged(object sender, FileSystemEventArgs e)
+        {
+            // Reset the cache
+            _packages = null;
+            AssemblyLoader.InvalidateCache();
         }
 
         public override string Source => _fileSystem.Root;
@@ -656,6 +670,11 @@ namespace NuGetAssemblyLoader
                 CacheFiles(Repository);
         }
 
+        internal static void InvalidateCache()
+        {
+            _cacheIsValid = false;
+        }
+
         class HighestPackageSorter : PackageSorter
         {
             readonly IPackageRepository _repository;
@@ -676,6 +695,9 @@ namespace NuGetAssemblyLoader
             {
                 lock (_fileCache)
                 {
+                    _packageAssemblyCache.Clear();
+                    _fileCache.Clear();
+
                     var sorter = new HighestPackageSorter(ExecutingFrameworkName, repository);
                     foreach (var p in sorter.GetPackagesByDependencyOrder(repository))
                     {
