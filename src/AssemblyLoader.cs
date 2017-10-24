@@ -228,12 +228,12 @@ namespace NuGetAssemblyLoader
         }
     }
 
-    public class InstalledPackage : ZipPackage, IPackageWithPath
+    public class InstalledNupkgPackage : ZipPackage, IPackageWithPath
     {
         readonly IFileSystem _packageFileSystem;
         List<PhysicalPackageFile> _files;
 
-        public InstalledPackage(IFileSystem repositoryFileSystem, string folder, string nupkgFile)
+        public InstalledNupkgPackage(IFileSystem repositoryFileSystem, string folder, string nupkgFile)
             : base(repositoryFileSystem.GetFullPath(nupkgFile))
         {
             _packageFileSystem = new PhysicalFileSystem(repositoryFileSystem.GetFullPath(folder));
@@ -295,25 +295,41 @@ namespace NuGetAssemblyLoader
         }
     }
 
-    public class SpecialInstalledPackage : InstalledPackage
+    public class InstalledNuspecPackage : LocalPackage, IPackageWithPath
     {
-        readonly string _specialLibFolder;
+        readonly IFileSystem _packageFileSystem;
+        List<PhysicalPackageFile> _files;
 
-        public SpecialInstalledPackage(IFileSystem repositoryFileSystem, string folder, string nupkgFile, string specialLibFolder)
-            : base(repositoryFileSystem, folder, nupkgFile)
+        public InstalledNuspecPackage(IFileSystem repositoryFileSystem, string folder, string nuspecFile)
         {
-            _specialLibFolder = specialLibFolder;
+            _packageFileSystem = new PhysicalFileSystem(repositoryFileSystem.GetFullPath(folder));
+            var f = repositoryFileSystem.GetFullPath(nuspecFile);
+            using (var stream = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.Read))
+                ReadManifest(stream);
+        }
+
+        public string Path => _packageFileSystem.Root;
+
+        protected List<PhysicalPackageFile> Files
+        {
+            get
+            {
+                if (_files == null)
+                    _files = GetFilesCore().ToList();
+                return _files;
+            }
+        }
+
+        public override IEnumerable<FrameworkName> GetSupportedFrameworks()
+        {
+            return base.GetSupportedFrameworks();
         }
 
         protected override IEnumerable<IPackageAssemblyReference> GetAssemblyReferencesCore()
         {
-            foreach (var file in base.GetAssemblyReferencesCore())
-                yield return file;
             foreach (var file in Files)
             {
-                if (!file.IsAssemblyFile())
-                    continue;
-                if (!file.EffectivePath.StartsWith(_specialLibFolder))
+                if (!IsAssemblyReference(file.Path))
                     continue;
                 yield return new PhysicalPackageAssemblyReference()
                 {
@@ -321,6 +337,40 @@ namespace NuGetAssemblyLoader
                     TargetPath = file.TargetPath
                 };
             }
+        }
+
+        protected override IEnumerable<IPackageFile> GetFilesBase() => Files;
+
+        private IEnumerable<PhysicalPackageFile> GetFilesCore()
+        {
+            foreach (var file in _packageFileSystem.GetFiles(string.Empty, "*", true))
+            {
+                if (PackageHelper.IsManifest(file) || PackageHelper.IsPackageFile(file))
+                    continue;
+                var packageFile = new PhysicalPackageFile()
+                {
+                    SourcePath = _packageFileSystem.GetFullPath(file)
+                };
+                try
+                {
+                    packageFile.TargetPath = file;
+                }
+                catch (ArgumentException)
+                {
+                    // Some packages contain invalid target framework names
+                }
+                yield return packageFile;
+            }
+        }
+
+        public override Stream GetStream()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void ExtractContents(IFileSystem fileSystem, string extractPath)
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -361,18 +411,22 @@ namespace NuGetAssemblyLoader
         {
             foreach (var dir in _fileSystem.GetDirectories(string.Empty))
             {
-                foreach (var nupkgFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.PackageExtension}"))
+                foreach (var file in _fileSystem.GetFiles(dir, "*"))
                 {
-                    IPackage pkg;
-                    if (dir.StartsWith("SharpDX"))
-                        pkg = new SpecialInstalledPackage(_fileSystem, dir, nupkgFile, @"Bin\DirectX11-Signed-net40");
-                    else
-                        pkg = new InstalledPackage(_fileSystem, dir, nupkgFile);
-                    if (pkg.MinClientVersion != null && Constants.NuGetVersion < pkg.MinClientVersion)
-                        Trace.TraceWarning($"Ignoring package {pkg} because it requires NuGet {pkg.MinClientVersion}");
-                    else
-                        yield return pkg;
-                    break;
+                    var pkg = default(IPackage);
+                    var ext = Path.GetExtension(file);
+                    if (ext == Constants.PackageExtension)
+                        pkg = new InstalledNupkgPackage(_fileSystem, dir, file);
+                    else if (ext == Constants.ManifestExtension)
+                        pkg = new InstalledNuspecPackage(_fileSystem, dir, file);
+                    if (pkg != null)
+                    {
+                        if (pkg.MinClientVersion != null && Constants.NuGetVersion < pkg.MinClientVersion)
+                            Trace.TraceWarning($"Ignoring package {pkg} because it requires NuGet {pkg.MinClientVersion}");
+                        else
+                            yield return pkg;
+                        break;
+                    }
                 }
             }
         }
@@ -483,8 +537,13 @@ namespace NuGetAssemblyLoader
         public IPackageRepository CreateRepository(string packageSource)
         {
             var fs = new PhysicalFileSystem(packageSource);
+            // package-version/package-version.nupkg
             if (fs.GetDirectories(string.Empty).Any(d => fs.GetFiles(d, $"{d}{Constants.PackageExtension}").Any()))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
+            // package-version/package.nuspec
+            if (fs.GetDirectories(string.Empty).Take(1).Any(d => fs.GetFiles(d, $"*{Constants.ManifestExtension}").Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}")))
+                return new InstalledPackageRepository(new DirectoryInfo(packageSource));
+            // package/package.nuspec
             return new SrcPackageRepository(new DirectoryInfo(packageSource));
         }
     }
