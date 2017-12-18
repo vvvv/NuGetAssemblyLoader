@@ -935,6 +935,13 @@ namespace NuGetAssemblyLoader
 
         public static IEnumerable<PhysicalPackageAssemblyReference> GetCompatibleAssemblyFiles(this IPackage package)
         {
+            if (package.Id == "Microsoft.Net.Compilers")
+            {
+                var toolFiles = package.GetToolFiles().OfType<PhysicalPackageFile>()
+                    .Where(f => Path.GetExtension(f.Path) == ".dll")
+                    .Select(p => new PhysicalPackageAssemblyReference(p)).ToArray();
+                return toolFiles;
+            }
             IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles;
             var files = package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>();
             if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
