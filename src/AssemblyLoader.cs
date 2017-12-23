@@ -723,6 +723,8 @@ namespace NuGetAssemblyLoader
             _cacheIsValid = false;
         }
 
+        public static Action CacheInvalidated;
+
         private static void EnsureValidCache()
         {
             if (!_cacheIsValid)
@@ -732,6 +734,7 @@ namespace NuGetAssemblyLoader
         internal static void InvalidateCache()
         {
             _cacheIsValid = false;
+            CacheInvalidated?.Invoke();
         }
 
         class HighestPackageSorter : PackageSorter
