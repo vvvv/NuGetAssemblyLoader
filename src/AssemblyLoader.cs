@@ -734,6 +734,7 @@ namespace NuGetAssemblyLoader
         internal static void InvalidateCache()
         {
             _cacheIsValid = false;
+            _packages.Clear();
             CacheInvalidated?.Invoke();
         }
 
