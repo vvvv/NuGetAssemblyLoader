@@ -639,21 +639,26 @@ namespace NuGetAssemblyLoader
                 EnvironmentPath.AddPackage(package);
         }
 
-        public static string[] ParseCommandLine(string key)
+        public static string[] ParseLines(string[] lines, string key)
         {
-            var commandLineArgs = Environment.GetCommandLineArgs();
-            var sourcesIndex = Array.IndexOf(commandLineArgs, key);
-            if (sourcesIndex >= 0 && commandLineArgs.Length > sourcesIndex + 1)
+            var sourcesIndex = Array.IndexOf(lines, key);
+            if (sourcesIndex >= 0 && lines.Length > sourcesIndex + 1)
             {
-                var sourcesString = commandLineArgs[sourcesIndex + 1];
+                var sourcesString = lines[sourcesIndex + 1];
                 var paths = sourcesString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                for (int i = 0; i<paths.Length; i++)
+                for (int i = 0; i < paths.Length; i++)
                 {
                     paths[i] = paths[i].Trim('"', '\\');
                 }
                 return paths;
             }
             return Array.Empty<string>();
+        }
+
+        public static string[] ParseCommandLine(string key)
+        {
+            var commandLineArgs = Environment.GetCommandLineArgs();
+            return ParseLines(commandLineArgs, key);
         }
 
         public static IEnumerable<string> PackageRepositories => _packageRepositories;
