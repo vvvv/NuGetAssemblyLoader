@@ -743,6 +743,7 @@ namespace NuGetAssemblyLoader
         {
             _cacheIsValid = false;
             _packages.Clear();
+            _repository = null;
             CacheInvalidated?.Invoke();
         }
 
