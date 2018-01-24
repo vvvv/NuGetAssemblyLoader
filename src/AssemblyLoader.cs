@@ -731,7 +731,7 @@ namespace NuGetAssemblyLoader
             _cacheIsValid = false;
         }
 
-        public static Action CacheInvalidated;
+        public static event EventHandler CacheInvalidated;
 
         private static void EnsureValidCache()
         {
@@ -744,7 +744,7 @@ namespace NuGetAssemblyLoader
             _cacheIsValid = false;
             _packages.Clear();
             _repository = null;
-            CacheInvalidated?.Invoke();
+            CacheInvalidated?.Invoke(null, EventArgs.Empty);
         }
 
         class HighestPackageSorter : PackageSorter
