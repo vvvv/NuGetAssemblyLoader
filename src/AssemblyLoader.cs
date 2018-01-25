@@ -6,55 +6,65 @@ using System.Collections.Generic;
 using System.Runtime.Versioning;
 using NuGet;
 using System.Diagnostics;
+using System.Xml.Linq;
 
 namespace NuGetAssemblyLoader
 {
     public interface IPackageWithPath : IPackage { string Path { get; } }
 
-    public class SrcPackage : IPackageWithPath
+    public abstract class SrcPackage : IPackageWithPath
     {
-        class DummyLocalPackage : LocalPackage
-        {
-            public new static bool IsAssemblyReference(string filePath)
-            {
-                return LocalPackage.IsAssemblyReference(filePath);
-            }
+        public abstract IEnumerable<IPackageAssemblyReference> AssemblyReferences { get; }
+        public abstract IEnumerable<string> Authors { get; }
+        public abstract string Copyright { get; }
+        public abstract IEnumerable<PackageDependencySet> DependencySets { get; }
+        public abstract string Description { get; }
+        public abstract bool DevelopmentDependency { get; }
+        public abstract int DownloadCount { get; }
+        public abstract IEnumerable<FrameworkAssemblyReference> FrameworkAssemblies { get; }
+        public abstract Uri IconUrl { get; }
+        public abstract string Id { get; }
+        public abstract bool IsAbsoluteLatestVersion { get; }
+        public abstract bool IsLatestVersion { get; }
+        public abstract string Language { get; }
+        public abstract Uri LicenseUrl { get; }
+        public abstract bool Listed { get; }
+        public abstract Version MinClientVersion { get; }
+        public abstract IEnumerable<string> Owners { get; }
+        public abstract ICollection<PackageReferenceSet> PackageAssemblyReferences { get; }
+        public abstract string Path { get; }
+        public abstract Uri ProjectUrl { get; }
+        public abstract DateTimeOffset? Published { get; }
+        public abstract string ReleaseNotes { get; }
+        public abstract Uri ReportAbuseUrl { get; }
+        public abstract bool RequireLicenseAcceptance { get; }
+        public abstract string Summary { get; }
+        public abstract string Tags { get; }
+        public abstract string Title { get; }
+        public abstract SemanticVersion Version { get; }
 
-            public override void ExtractContents(IFileSystem fileSystem, string extractPath)
-            {
-                throw new NotImplementedException();
-            }
+        public abstract void ExtractContents(IFileSystem fileSystem, string extractPath);
+        public abstract IEnumerable<IPackageFile> GetFiles();
+        public abstract Stream GetStream();
+        public abstract IEnumerable<FrameworkName> GetSupportedFrameworks();
+    }
 
-            public override Stream GetStream()
-            {
-                throw new NotImplementedException();
-            }
-
-            protected override IEnumerable<IPackageAssemblyReference> GetAssemblyReferencesCore()
-            {
-                throw new NotImplementedException();
-            }
-
-            protected override IEnumerable<IPackageFile> GetFilesBase()
-            {
-                throw new NotImplementedException();
-            }
-        }
-
+    public class SrcPackageWithNuspec : SrcPackage
+    {
         readonly IFileSystem _repositoryFileSystem;
         readonly string _packageName;
         readonly string _nuspecFile;
         PackageBuilder _builder;
         List<PhysicalPackageFile> _files;
 
-        public SrcPackage(IFileSystem repositoryFileSystem, string packageName, string nuspecFile)
+        public SrcPackageWithNuspec(IFileSystem repositoryFileSystem, string packageName, string nuspecFile)
         {
             _repositoryFileSystem = repositoryFileSystem;
             _packageName = packageName;
             _nuspecFile = nuspecFile;
         }
 
-        public string Path => _repositoryFileSystem.GetFullPath(_packageName);
+        public override string Path => _repositoryFileSystem.GetFullPath(_packageName);
 
         internal List<PhysicalPackageFile> Files
         {
@@ -88,35 +98,35 @@ namespace NuGetAssemblyLoader
             }
         }
 
-        public bool IsAbsoluteLatestVersion => true;
-        public bool IsLatestVersion => true;
-        public bool Listed => false;
-        public DateTimeOffset? Published => null;
-        public IEnumerable<IPackageAssemblyReference> AssemblyReferences => GetAssemblyReferencesCore();
-        public string Title => Builder.Title;
-        public IEnumerable<string> Authors => Builder.Authors;
-        public IEnumerable<string> Owners => Builder.Owners;
-        public Uri IconUrl => Builder.IconUrl;
-        public Uri LicenseUrl => Builder.LicenseUrl;
-        public Uri ProjectUrl => Builder.ProjectUrl;
-        public bool RequireLicenseAcceptance => Builder.RequireLicenseAcceptance;
-        public bool DevelopmentDependency => Builder.DevelopmentDependency;
-        public string Description => Builder.Description;
-        public string Summary => Builder.Summary;
-        public string ReleaseNotes => Builder.ReleaseNotes;
-        public string Language => Builder.Language;
-        public string Tags => string.Join(", ", Builder.Tags);
-        public string Copyright => Builder.Copyright;
-        public IEnumerable<FrameworkAssemblyReference> FrameworkAssemblies => Builder.FrameworkReferences;
-        public ICollection<PackageReferenceSet> PackageAssemblyReferences => Builder.PackageAssemblyReferences;
-        public IEnumerable<PackageDependencySet> DependencySets => Builder.DependencySets;
-        public Version MinClientVersion => Builder.MinClientVersion;
-        public string Id => _packageName;
-        public SemanticVersion Version => Builder.Version ?? new SemanticVersion(0, 0, 0, 0);
-        public Uri ReportAbuseUrl => null;
-        public int DownloadCount => -1;
+        public override bool IsAbsoluteLatestVersion => true;
+        public override bool IsLatestVersion => true;
+        public override bool Listed => false;
+        public override DateTimeOffset? Published => null;
+        public override IEnumerable<IPackageAssemblyReference> AssemblyReferences => GetAssemblyReferencesCore();
+        public override string Title => Builder.Title;
+        public override IEnumerable<string> Authors => Builder.Authors;
+        public override IEnumerable<string> Owners => Builder.Owners;
+        public override Uri IconUrl => Builder.IconUrl;
+        public override Uri LicenseUrl => Builder.LicenseUrl;
+        public override Uri ProjectUrl => Builder.ProjectUrl;
+        public override bool RequireLicenseAcceptance => Builder.RequireLicenseAcceptance;
+        public override bool DevelopmentDependency => Builder.DevelopmentDependency;
+        public override string Description => Builder.Description;
+        public override string Summary => Builder.Summary;
+        public override string ReleaseNotes => Builder.ReleaseNotes;
+        public override string Language => Builder.Language;
+        public override string Tags => string.Join(", ", Builder.Tags);
+        public override string Copyright => Builder.Copyright;
+        public override IEnumerable<FrameworkAssemblyReference> FrameworkAssemblies => Builder.FrameworkReferences;
+        public override ICollection<PackageReferenceSet> PackageAssemblyReferences => Builder.PackageAssemblyReferences;
+        public override IEnumerable<PackageDependencySet> DependencySets => Builder.DependencySets;
+        public override Version MinClientVersion => Builder.MinClientVersion;
+        public override string Id => _packageName;
+        public override SemanticVersion Version => Builder.Version ?? new SemanticVersion(0, 0, 0, 0);
+        public override Uri ReportAbuseUrl => null;
+        public override int DownloadCount => -1;
 
-        public IEnumerable<FrameworkName> GetSupportedFrameworks()
+        public override IEnumerable<FrameworkName> GetSupportedFrameworks()
         {
             return Builder.FrameworkReferences.SelectMany(f => f.SupportedFrameworks)
                 .Concat(Files.SelectMany(f => f.SupportedFrameworks))
@@ -127,7 +137,7 @@ namespace NuGetAssemblyLoader
         {
             foreach (var file in Files)
             {
-                if (!DummyLocalPackage.IsAssemblyReference(file.Path))
+                if (!AssemblyLoader.IsAssemblyReference(file.Path))
                     continue;
                 yield return new PhysicalPackageAssemblyReference
                 {
@@ -137,7 +147,7 @@ namespace NuGetAssemblyLoader
             }
         }
 
-        public IEnumerable<IPackageFile> GetFiles()
+        public override IEnumerable<IPackageFile> GetFiles()
         {
             return Files;
         }
@@ -168,12 +178,147 @@ namespace NuGetAssemblyLoader
             }
         }
 
-        public Stream GetStream()
+        public override Stream GetStream()
         {
             throw new NotImplementedException();
         }
 
-        public void ExtractContents(IFileSystem fileSystem, string extractPath)
+        public override void ExtractContents(IFileSystem fileSystem, string extractPath)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override string ToString()
+        {
+            return this.GetFullName();
+        }
+    }
+
+    public class SrcPackageWithoutNuspec : SrcPackage
+    {
+        readonly IFileSystem _packageFileSystem;
+        readonly string _packageName;
+        readonly string _vlFile;
+        XDocument _mainFile;
+        List<PhysicalPackageFile> _files;
+
+        public SrcPackageWithoutNuspec(IFileSystem repositoryFileSystem, string packageName, string vlFile)
+        {
+            _packageFileSystem = new PhysicalFileSystem(repositoryFileSystem.GetFullPath(packageName));
+            _packageName = packageName;
+            _vlFile = repositoryFileSystem.GetFullPath(vlFile);
+        }
+
+        public override string Path => _packageFileSystem.Root;
+
+        public XDocument MainFile => _mainFile ?? (_mainFile = XDocument.Load(_vlFile));
+
+        internal List<PhysicalPackageFile> Files
+        {
+            get
+            {
+                if (_files == null)
+                    _files = GetFilesCore().ToList();
+                return _files;
+            }
+        }
+
+        public override bool IsAbsoluteLatestVersion => true;
+        public override bool IsLatestVersion => true;
+        public override bool Listed => false;
+        public override DateTimeOffset? Published => null;
+        public override IEnumerable<IPackageAssemblyReference> AssemblyReferences => GetAssemblyReferencesCore();
+        public override string Title => null;
+        public override IEnumerable<string> Authors => Enumerable.Empty<string>();
+        public override IEnumerable<string> Owners => Enumerable.Empty<string>();
+        public override Uri IconUrl => null;
+        public override Uri LicenseUrl => null;
+        public override Uri ProjectUrl => null;
+        public override bool RequireLicenseAcceptance => false;
+        public override bool DevelopmentDependency => false;
+        public override string Description => null;
+        public override string Summary => null;
+        public override string ReleaseNotes => null;
+        public override string Language => null;
+        public override string Tags => null;
+        public override string Copyright => null;
+        public override IEnumerable<FrameworkAssemblyReference> FrameworkAssemblies => Enumerable.Empty<FrameworkAssemblyReference>();
+        public override ICollection<PackageReferenceSet> PackageAssemblyReferences => Array.Empty<PackageReferenceSet>();
+
+        public override IEnumerable<PackageDependencySet> DependencySets
+        {
+            get
+            {
+                var dependencies = MainFile.Root.Elements("NugetDependency")
+                    .Select(d => d.Attribute("Location") != null ? new PackageDependency(d.Attribute("Location").Value) : null)
+                    .Where(d => d != null);
+                yield return new PackageDependencySet(AssemblyLoader.ExecutingFrameworkName, dependencies);
+            }
+        }
+
+        public override Version MinClientVersion => new Version(0, 0, 0);
+        public override string Id => _packageName;
+
+        public override SemanticVersion Version
+        {
+            get
+            {
+                var versionAttribute = MainFile.Root.Attribute("Version");
+                if (versionAttribute != null)
+                {
+                    SemanticVersion result;
+                    if (SemanticVersion.TryParse(versionAttribute.Value, out result))
+                        return result;
+                }
+                return new SemanticVersion(0, 0, 1, 0);
+            }
+        }
+
+        public override Uri ReportAbuseUrl => null;
+        public override int DownloadCount => -1;
+
+        public override IEnumerable<FrameworkName> GetSupportedFrameworks()
+        {
+            yield return AssemblyLoader.ExecutingFrameworkName;
+        }
+
+        protected IEnumerable<IPackageAssemblyReference> GetAssemblyReferencesCore()
+        {
+            foreach (var file in Files)
+            {
+                if (!AssemblyLoader.IsAssemblyReference(file.Path))
+                    continue;
+                yield return new PhysicalPackageAssemblyReference
+                {
+                    SourcePath = file.SourcePath,
+                    TargetPath = file.TargetPath
+                };
+            }
+        }
+
+        public override IEnumerable<IPackageFile> GetFiles()
+        {
+            return Files;
+        }
+
+        private IEnumerable<PhysicalPackageFile> GetFilesCore()
+        {
+            foreach (var f in _packageFileSystem.GetFiles("", "*", true))
+            {
+                yield return new PhysicalPackageFile()
+                {
+                    SourcePath = _packageFileSystem.GetFullPath(f),
+                    TargetPath = f
+                };
+            }
+        }
+
+        public override Stream GetStream()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void ExtractContents(IFileSystem fileSystem, string extractPath)
         {
             throw new NotImplementedException();
         }
@@ -219,10 +364,20 @@ namespace NuGetAssemblyLoader
         {
             foreach (var dir in _fileSystem.GetDirectories(string.Empty))
             {
+                var hasNuspec = false;
                 foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
                 {
-                    yield return new SrcPackage(_fileSystem, dir, nuspecFile);
+                    hasNuspec = true;
+                    yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
                     break;
+                }
+                if (!hasNuspec)
+                {
+                    foreach (var vlFile in _fileSystem.GetFiles(dir, $"{dir}.vl"))
+                    {
+                        yield return new SrcPackageWithoutNuspec(_fileSystem, dir, vlFile);
+                        break;
+                    }
                 }
             }
         }
@@ -543,7 +698,7 @@ namespace NuGetAssemblyLoader
             // package-version/package.nuspec
             if (fs.GetDirectories(string.Empty).Take(1).Any(d => fs.GetFiles(d, $"*{Constants.ManifestExtension}").Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}")))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
-            // package/package.nuspec
+            // package/package.nuspec or package/package.vl
             return new SrcPackageRepository(new DirectoryInfo(packageSource));
         }
     }
@@ -579,6 +734,36 @@ namespace NuGetAssemblyLoader
 
     public static class AssemblyLoader
     {
+        class DummyLocalPackage : LocalPackage
+        {
+            public new static bool IsAssemblyReference(string filePath)
+            {
+                return LocalPackage.IsAssemblyReference(filePath);
+            }
+
+            public override void ExtractContents(IFileSystem fileSystem, string extractPath)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Stream GetStream()
+            {
+                throw new NotImplementedException();
+            }
+
+            protected override IEnumerable<IPackageAssemblyReference> GetAssemblyReferencesCore()
+            {
+                throw new NotImplementedException();
+            }
+
+            protected override IEnumerable<IPackageFile> GetFilesBase()
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public static bool IsAssemblyReference(string filePath) => DummyLocalPackage.IsAssemblyReference(filePath);
+
         private const string ResourceAssemblyExtension = ".resources.dll";
         static readonly HashSet<IPackage> _cachedPackages = new HashSet<IPackage>();
         static readonly Dictionary<string, string> _packageAssemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
