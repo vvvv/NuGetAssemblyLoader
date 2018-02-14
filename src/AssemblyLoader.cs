@@ -818,6 +818,8 @@ namespace NuGetAssemblyLoader
 
             var assembly = args.LoadedAssembly;
             if (assembly.GlobalAssemblyCache || assembly.IsDynamic) return;
+            var name = assembly.GetName();
+            if (name.Name.StartsWith("Microsoft.VisualStudio.Debugger")) return;
 
             var package = FindPackageWithFile(Path.GetFileName(assembly.Location));
             if (package != null)
