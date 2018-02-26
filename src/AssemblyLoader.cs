@@ -673,7 +673,7 @@ namespace NuGetAssemblyLoader
         private IEnumerable<IPackage> GetPackagesPreferingSourceOverInstalled()
         {
             var seenPackageIds = new HashSet<string>();
-            var packages = _repository.GetPackages().ToList();
+            var packages = _repository.GetPackages().ToList().OrderByDescending(p => p.Version);
             foreach (var package in packages.OfType<SrcPackage>())
             {
                 if (seenPackageIds.Add(package.Id))
