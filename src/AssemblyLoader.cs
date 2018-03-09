@@ -698,6 +698,9 @@ namespace NuGetAssemblyLoader
             // package-version/package.nuspec
             if (fs.GetDirectories(string.Empty).Take(1).Any(d => fs.GetFiles(d, $"*{Constants.ManifestExtension}").Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}")))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
+            // lib\packs contains nuget.exe which we also want to create an installedPackage repo for
+            if (fs.GetFiles(string.Empty, false).Any(f => string.Equals(f, "nuget.exe", StringComparison.OrdinalIgnoreCase)))
+                return new InstalledPackageRepository(new DirectoryInfo(packageSource));
             // package/package.nuspec or package/package.vl
             return new SrcPackageRepository(new DirectoryInfo(packageSource));
         }
