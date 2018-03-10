@@ -550,17 +550,17 @@ namespace NuGetAssemblyLoader
             _delayTimer.Elapsed += _delayTimer_Elapsed;
         }
 
-        private void _delayTimer_Elapsed(object sender, ElapsedEventArgs e)
+        private void HandlePathChanged(object sender, FileSystemEventArgs e)
         {
-            AssemblyLoader.InvalidateCache();
+            _delayTimer.Enabled = true;
         }
 
-        private void HandlePathChanged(object sender, FileSystemEventArgs e)
+        private void _delayTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             // Reset the cache
             _packages = null;
 
-            _delayTimer.Enabled = true;
+            AssemblyLoader.InvalidateCache();
         }
 
         public override string Source => _fileSystem.Root;
