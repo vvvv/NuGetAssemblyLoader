@@ -765,7 +765,6 @@ namespace NuGetAssemblyLoader
         public static bool IsAssemblyReference(string filePath) => DummyLocalPackage.IsAssemblyReference(filePath);
 
         private const string ResourceAssemblyExtension = ".resources.dll";
-        static readonly HashSet<IPackage> _cachedPackages = new HashSet<IPackage>();
         static readonly Dictionary<string, string> _packageAssemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, KeyValuePair<string, IPackage>> _fileCache = new Dictionary<string, KeyValuePair<string, IPackage>>(StringComparer.OrdinalIgnoreCase);
         static Dictionary<string, Assembly> _loadedAssemblyCache;
@@ -957,10 +956,11 @@ namespace NuGetAssemblyLoader
                     _packageAssemblyCache.Clear();
                     _fileCache.Clear();
 
+                    var set = new HashSet<IPackage>();
                     var sorter = new HighestPackageSorter(ExecutingFrameworkName, repository);
                     foreach (var p in sorter.GetPackagesByDependencyOrder(repository))
                     {
-                        if (!_cachedPackages.Add(p))
+                        if (!set.Add(p))
                             continue;
                         CacheFiles(p);
                     }
