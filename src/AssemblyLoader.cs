@@ -7,6 +7,7 @@ using System.Runtime.Versioning;
 using NuGet;
 using System.Diagnostics;
 using System.Xml.Linq;
+using System.Timers;
 
 namespace NuGetAssemblyLoader
 {
@@ -534,6 +535,7 @@ namespace NuGetAssemblyLoader
         readonly IFileSystem _fileSystem;
         readonly FileSystemWatcher _watcher;
         IQueryable<IPackage> _packages;
+        Timer _delayTimer = new Timer(2000) { AutoReset = false };
 
         public InstalledPackageRepository(DirectoryInfo repositoryFolder)
         {
@@ -544,12 +546,21 @@ namespace NuGetAssemblyLoader
             _watcher.Deleted += HandlePathChanged;
             _watcher.Changed += HandlePathChanged;
             _watcher.EnableRaisingEvents = true;
+
+            _delayTimer.Elapsed += _delayTimer_Elapsed;
         }
 
         private void HandlePathChanged(object sender, FileSystemEventArgs e)
         {
+            _delayTimer.Stop();
+            _delayTimer.Start();
+        }
+
+        private void _delayTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
             // Reset the cache
             _packages = null;
+
             AssemblyLoader.InvalidateCache();
         }
 
