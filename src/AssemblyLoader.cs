@@ -264,14 +264,14 @@ namespace NuGetAssemblyLoader
         {
             get
             {
-                var versionAttribute = MainFile.Root.Attribute("Version");
-                if (versionAttribute != null)
-                {
-                    SemanticVersion result;
-                    if (SemanticVersion.TryParse(versionAttribute.Value, out result))
-                        return result;
-                }
-                return new SemanticVersion(0, 0, 1, 0);
+                //var versionAttribute = MainFile.Root.Attribute("Version");
+                //if (versionAttribute != null)
+                //{
+                //    SemanticVersion result;
+                //    if (SemanticVersion.TryParse(versionAttribute.Value, out result))
+                //        return result;
+                //}
+                return new SemanticVersion(0, 0, 0, 0);
             }
         }
 
