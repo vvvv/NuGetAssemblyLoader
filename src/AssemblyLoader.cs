@@ -714,35 +714,6 @@ namespace NuGetAssemblyLoader
         }
     }
 
-    /// <summary>
-    /// Manage the environment path variable to find native .dll files
-    /// </summary>
-    public static class EnvironmentPath
-    {
-        public static string GetPath => Environment.GetEnvironmentVariable("PATH") ?? String.Empty;
-        public static void AddToPath(string path) => Environment.SetEnvironmentVariable("PATH", GetPath + Path.PathSeparator + path);
-        static HashSet<IPackage> AddedPackages = new HashSet<IPackage>();
-
-        /// <summary>
-        /// Adds the 'lib-native' folder of a package to the 'PATH' environment variable if it exists
-        /// and the packages was not already added.
-        /// Assumes that 'Source Packages' will be added before 'Installed Packages', does no priority logic.
-        /// </summary>
-        /// <param name="package">The package to check</param>
-        public static void AddPackage(IPackage package)
-        {
-            if (!AddedPackages.Add(package)) return;
-
-            var nativeFile = package.GetFiles(Path.Combine("lib-native", Environment.Is64BitProcess ? "x64" : "x86")).OfType<PhysicalPackageFile>().FirstOrDefault();
-            if (nativeFile == null)
-                nativeFile = package.GetFiles(Path.Combine("NativeDlls", Environment.Is64BitProcess ? "x64" : "x86")).OfType<PhysicalPackageFile>().FirstOrDefault();
-
-            if (nativeFile != null)
-                AddToPath(Path.GetDirectoryName(nativeFile.SourcePath));
-        }
-    }
-
-
     public static class AssemblyLoader
     {
         class DummyLocalPackage : LocalPackage
@@ -787,7 +758,6 @@ namespace NuGetAssemblyLoader
         static AssemblyLoader()
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-            AppDomain.CurrentDomain.AssemblyLoad += CurrentDomain_AssemblyLoad;
             AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
         }
 
@@ -819,21 +789,6 @@ namespace NuGetAssemblyLoader
                 }
                 return _loadedAssemblyCache;
             }
-        }
-
-        private static void CurrentDomain_AssemblyLoad(object sender, AssemblyLoadEventArgs args)
-        {
-            // Invalidate cache
-            _loadedAssemblyCache = null;
-
-            var assembly = args.LoadedAssembly;
-            if (assembly.GlobalAssemblyCache || assembly.IsDynamic) return;
-            var name = assembly.GetName();
-            if (name.Name.StartsWith("Microsoft.VisualStudio.Debugger")) return;
-
-            var package = FindPackageWithFile(Path.GetFileName(assembly.Location));
-            if (package != null)
-                EnvironmentPath.AddPackage(package);
         }
 
         public static string[] ParseLines(string[] lines, string key)
@@ -996,7 +951,38 @@ namespace NuGetAssemblyLoader
                 if (!_packageAssemblyCache.ContainsKey(assemblyName))
                     _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
             }
+            string nativePath;
+            if (TryGetNativePath(package, out nativePath))
+            {
+                var PATH = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                if (!PATH.Contains(nativePath))
+                    Environment.SetEnvironmentVariable("PATH", PATH + Path.PathSeparator + nativePath);
+            }
         }
+
+        static bool TryGetNativePath(IPackage package, out string absoluteNativeLibDir)
+        {
+            return TryGetNativePath(package, "lib-native", out absoluteNativeLibDir) 
+                || TryGetNativePath(package, "NativeDlls", out absoluteNativeLibDir);
+        }
+
+        static bool TryGetNativePath(IPackage package, string nativeLibBaseDir, out string absoluteNativeLibDir)
+        {
+            var nativeLibDir = AppendProcessArchitecture(nativeLibBaseDir);
+            var nativeFile = package.GetFiles(nativeLibDir).FirstOrDefault() as PhysicalPackageFile;
+            if (nativeFile != null)
+            {
+                absoluteNativeLibDir = Path.GetDirectoryName(nativeFile.SourcePath);
+                return true;
+            }
+            else
+            {
+                absoluteNativeLibDir = null;
+                return false;
+            }
+        }
+
+        static string AppendProcessArchitecture(string path) => Path.Combine(path, Environment.Is64BitProcess ? "x64" : "x86");
 
         private static Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
         {
