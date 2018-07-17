@@ -960,6 +960,18 @@ namespace NuGetAssemblyLoader
             }
         }
 
+        public static void AddPathToBeAwareOfWhenSearchingForNativeDlls(string path)
+        {
+            EnsureValidCache();
+            var nativePath = Path.Combine(path, AppendProcessArchitecture("lib-native")).ToString();
+            if (Directory.Exists(nativePath))
+            {
+                var PATH = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                if (!PATH.Contains(nativePath))
+                    Environment.SetEnvironmentVariable("PATH", PATH + Path.PathSeparator + nativePath);
+            }
+        }
+
         static bool TryGetNativePath(IPackage package, out string absoluteNativeLibDir)
         {
             return TryGetNativePath(package, "lib-native", out absoluteNativeLibDir) 
