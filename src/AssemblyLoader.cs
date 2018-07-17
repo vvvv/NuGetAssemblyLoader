@@ -951,35 +951,36 @@ namespace NuGetAssemblyLoader
                 if (!_packageAssemblyCache.ContainsKey(assemblyName))
                     _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
             }
-            string nativePath;
-            if (TryGetNativePath(package, out nativePath))
+            foreach (var nativePath in GetNativePaths(package))
             {
+                // Skip Debug folders as seen in CNTK packages
+                if (nativePath.Contains($"{Path.DirectorySeparatorChar}Debug"))
+                    continue;
                 var PATH = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
                 if (!PATH.Contains(nativePath))
                     Environment.SetEnvironmentVariable("PATH", PATH + Path.PathSeparator + nativePath);
             }
         }
 
-        static bool TryGetNativePath(IPackage package, out string absoluteNativeLibDir)
+        static IEnumerable<string> GetNativePaths(IPackage package)
         {
-            return TryGetNativePath(package, "lib-native", out absoluteNativeLibDir) 
-                || TryGetNativePath(package, "NativeDlls", out absoluteNativeLibDir);
+            var set = new HashSet<string>();
+            foreach (var nativePath in GetNativePaths(package, "lib-native"))
+                if (set.Add(nativePath))
+                    yield return nativePath;
+            foreach (var nativePath in GetNativePaths(package, "NativeDlls"))
+                if (set.Add(nativePath))
+                    yield return nativePath;
+            foreach (var nativePath in GetNativePaths(package, "support"))
+                if (set.Add(nativePath))
+                    yield return nativePath;
         }
 
-        static bool TryGetNativePath(IPackage package, string nativeLibBaseDir, out string absoluteNativeLibDir)
+        static IEnumerable<string> GetNativePaths(IPackage package, string nativeLibBaseDir)
         {
             var nativeLibDir = AppendProcessArchitecture(nativeLibBaseDir);
-            var nativeFile = package.GetFiles(nativeLibDir).FirstOrDefault() as PhysicalPackageFile;
-            if (nativeFile != null)
-            {
-                absoluteNativeLibDir = Path.GetDirectoryName(nativeFile.SourcePath);
-                return true;
-            }
-            else
-            {
-                absoluteNativeLibDir = null;
-                return false;
-            }
+            foreach (var nativeFile in package.GetFiles(nativeLibDir).OfType<PhysicalPackageFile>())
+                yield return Path.GetDirectoryName(nativeFile.SourcePath);
         }
 
         static string AppendProcessArchitecture(string path) => Path.Combine(path, Environment.Is64BitProcess ? "x64" : "x86");
