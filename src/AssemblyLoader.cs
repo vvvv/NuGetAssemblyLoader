@@ -8,6 +8,7 @@ using NuGet;
 using System.Diagnostics;
 using System.Xml.Linq;
 using System.Timers;
+using System.Collections.Concurrent;
 
 namespace NuGetAssemblyLoader
 {
@@ -747,6 +748,7 @@ namespace NuGetAssemblyLoader
         public static bool IsAssemblyReference(string filePath) => DummyLocalPackage.IsAssemblyReference(filePath);
 
         private const string ResourceAssemblyExtension = ".resources.dll";
+        static readonly ConcurrentDictionary<string, IPackage> _packages = new ConcurrentDictionary<string, IPackage>();
         static readonly Dictionary<string, string> _packageAssemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, KeyValuePair<string, IPackage>> _fileCache = new Dictionary<string, KeyValuePair<string, IPackage>>(StringComparer.OrdinalIgnoreCase);
         static Dictionary<string, Assembly> _loadedAssemblyCache;
@@ -825,8 +827,6 @@ namespace NuGetAssemblyLoader
             }
         }
 
-        static readonly Dictionary<string, IPackage> _packages = new Dictionary<string, IPackage>();
-
         // Repository.FindPackage is incredibly slow (~15ms for each query)
         public static IPackage FindPackageAndCacheResult(string id)
         {
@@ -834,7 +834,7 @@ namespace NuGetAssemblyLoader
             if (!_packages.TryGetValue(id, out result))
             {
                 result = Repository.FindPackage(id);
-                _packages.Add(id, result);
+                _packages.TryAdd(id, result);
             }
             return result;
         }
