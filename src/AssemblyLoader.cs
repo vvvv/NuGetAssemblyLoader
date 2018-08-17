@@ -584,7 +584,7 @@ namespace NuGetAssemblyLoader
                     var ext = Path.GetExtension(file);
                     if (ext == Constants.PackageExtension)
                         pkg = new InstalledNupkgPackage(_fileSystem, dir, file);
-                    else if (ext == Constants.ManifestExtension)
+                    else if (ext == Constants.ManifestExtension || ext == $"{Constants.ManifestExtension}1")
                         pkg = new InstalledNuspecPackage(_fileSystem, dir, file);
                     if (pkg != null)
                     {
@@ -793,23 +793,23 @@ namespace NuGetAssemblyLoader
             }
         }
 
-        public static string[] ParseLines(string[] lines, string key)
+        public static List<string> ParseLines(string[] lines, string key)
         {
             var sourcesIndex = Array.IndexOf(lines, key);
             if (sourcesIndex >= 0 && lines.Length > sourcesIndex + 1)
             {
                 var sourcesString = lines[sourcesIndex + 1];
-                var paths = sourcesString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                for (int i = 0; i < paths.Length; i++)
+                var paths = sourcesString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                for (int i = 0; i < paths.Count; i++)
                 {
                     paths[i] = paths[i].Trim('"', '\\');
                 }
                 return paths;
             }
-            return Array.Empty<string>();
+            return new List<string>();
         }
 
-        public static string[] ParseCommandLine(string key)
+        public static List<string> ParseCommandLine(string key)
         {
             var commandLineArgs = Environment.GetCommandLineArgs();
             return ParseLines(commandLineArgs, key);
@@ -862,6 +862,12 @@ namespace NuGetAssemblyLoader
             var versionInfo = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
             var buildNumer = int.Parse(versionInfo.FileBuildPart.ToString().Substring(0, 1));
             return new Version(versionInfo.FileMajorPart, versionInfo.FileMinorPart, buildNumer);
+        }
+
+        public static void AddPackageRepositories(List<string> packageRepositories)
+        {
+            foreach (var packageRepository in packageRepositories)
+                AddPackageRepository(packageRepository);
         }
 
         public static void AddPackageRepositories(params string[] packageRepositories)
