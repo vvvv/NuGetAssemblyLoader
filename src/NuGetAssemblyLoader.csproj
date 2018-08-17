@@ -12,7 +12,7 @@
     <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\</BaseIntermediateOutputPath>
     <Prefer32Bit>false</Prefer32Bit>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
