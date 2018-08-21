@@ -375,6 +375,17 @@ namespace NuGetAssemblyLoader
                 }
                 if (!hasNuspec)
                 {
+                    // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
+                    var buildDir = Path.Combine(dir, "src", "bin", ThisAssembly.AssemblyConfiguration, AssemblyLoader.ExecutingFrameworkShortName);
+                    foreach (var nuspecFile in _fileSystem.GetFiles(buildDir, $"{dir}{Constants.ManifestExtension}"))
+                    {
+                        hasNuspec = true;
+                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
+                        break;
+                    }
+                }
+                if (!hasNuspec)
+                {
                     foreach (var vlFile in _fileSystem.GetFiles(dir, $"{dir}.vl"))
                     {
                         yield return new SrcPackageWithoutNuspec(_fileSystem, dir, vlFile);
@@ -755,6 +766,7 @@ namespace NuGetAssemblyLoader
         static readonly List<string> _packageRepositories = new List<string>();
         static PreferSourceOverInstalledAggregateRepository _repository;
         static FrameworkName _frameworkName;
+        static string _frameworkShortName;
         static volatile bool _cacheIsValid;
 
         static AssemblyLoader()
@@ -854,6 +866,16 @@ namespace NuGetAssemblyLoader
                 return _frameworkName;
             }
             set { _frameworkName = value; }
+        }
+
+        public static string ExecutingFrameworkShortName
+        {
+            get
+            {
+                if (_frameworkShortName == null)
+                    _frameworkShortName = VersionUtility.GetShortFrameworkName(ExecutingFrameworkName);
+                return _frameworkShortName;
+            }
         }
 
         static Version GetClrVersion()
