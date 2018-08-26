@@ -718,11 +718,19 @@ namespace NuGetAssemblyLoader
             // package-version/package-version.nupkg
             if (fs.GetDirectories(string.Empty).Any(d => fs.GetFiles(d, $"{d}{Constants.PackageExtension}").Any()))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
-            // package-version/package.nuspec
-            if (fs.GetDirectories(string.Empty).Take(1).Any(d => fs.GetFiles(d, $"*{Constants.ManifestExtension}").Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}")))
+            // package-version/package.nuspec or package-version/package.nuspec1
+            if (fs.GetDirectories(string.Empty).Take(1).Any(d => IsInstalledPackage(fs, d)))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
             // package/package.nuspec or package/package.vl
             return new SrcPackageRepository(new DirectoryInfo(packageSource));
+        }
+
+        static bool IsInstalledPackage(PhysicalFileSystem fs, string d)
+        {
+            var nuspecFiles = fs.GetFiles(d, $"*{Constants.ManifestExtension}").Concat(fs.GetFiles(d, $"*{Constants.ManifestExtension}1"));
+            if (nuspecFiles.Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}"))
+                return true;
+            return false;
         }
     }
 
