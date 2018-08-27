@@ -719,7 +719,8 @@ namespace NuGetAssemblyLoader
             if (fs.GetDirectories(string.Empty).Any(d => fs.GetFiles(d, $"{d}{Constants.PackageExtension}").Any()))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
             // package-version/package.nuspec or package-version/package.nuspec1
-            if (fs.GetDirectories(string.Empty).Take(1).Any(d => IsInstalledPackage(fs, d)))
+            // Look at the first non-empty directory only
+            if (fs.GetDirectories(string.Empty).Where(d => fs.GetFiles(d, "*").Any()).Take(1).Any(d => IsInstalledPackage(fs, d)))
                 return new InstalledPackageRepository(new DirectoryInfo(packageSource));
             // package/package.nuspec or package/package.vl
             return new SrcPackageRepository(new DirectoryInfo(packageSource));
