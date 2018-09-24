@@ -22,7 +22,13 @@
     <ItemGroup>
       <PackageFile Include="@(ReferenceCopyLocalPaths)">
         <Kind>Lib</Kind>
-        <TargetPath>%(Filename)%(Extension)</TargetPath>
+        <TargetFramework>net461</TargetFramework>
+        <PackagePath>lib\net461\%(Filename)%(Extension)</PackagePath>
+      </PackageFile>
+      <PackageFile Include="@(ReferenceCopyLocalPaths)">
+        <Kind>Lib</Kind>
+        <TargetFramework>net472</TargetFramework>
+        <PackagePath>lib\net472\%(Filename)%(Extension)</PackagePath>
       </PackageFile>
     </ItemGroup>
   </Target>
