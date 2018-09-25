@@ -367,12 +367,6 @@ namespace NuGetAssemblyLoader
             foreach (var dir in _fileSystem.GetDirectories(string.Empty))
             {
                 var hasNuspec = false;
-                foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
-                {
-                    hasNuspec = true;
-                    yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
-                    break;
-                }
                 if (!hasNuspec)
                 {
                     // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
@@ -386,8 +380,30 @@ namespace NuGetAssemblyLoader
                 }
                 if (!hasNuspec)
                 {
+                    // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
+                    var buildDir = Path.Combine(dir, "bin", ThisAssembly.AssemblyConfiguration, AssemblyLoader.ExecutingFrameworkShortName);
+                    foreach (var nuspecFile in _fileSystem.GetFiles(buildDir, $"{dir}{Constants.ManifestExtension}"))
+                    {
+                        hasNuspec = true;
+                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
+                        break;
+                    }
+                }
+                if (!hasNuspec)
+                {
+                    // VL.CoreLib/VL.CoreLib.nusepc
+                    foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
+                    {
+                        hasNuspec = true;
+                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
+                        break;
+                    }
+                }
+                if (!hasNuspec)
+                {
                     foreach (var vlFile in _fileSystem.GetFiles(dir, $"{dir}.vl"))
                     {
+                        hasNuspec = true;
                         yield return new SrcPackageWithoutNuspec(_fileSystem, dir, vlFile);
                         break;
                     }
