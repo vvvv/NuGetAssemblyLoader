@@ -798,6 +798,17 @@ namespace NuGetAssemblyLoader
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
             AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
+            AppDomain.CurrentDomain.AssemblyLoad += CurrentDomain_AssemblyLoad;
+        }
+
+        private static void CurrentDomain_AssemblyLoad(object sender, AssemblyLoadEventArgs args)
+        {
+            var assembly = args.LoadedAssembly;
+            if (!assembly.IsDynamic && !assembly.ReflectionOnly)
+            {
+                // Reset the cache
+                _loadedAssemblyCache = null;
+            }
         }
 
         static Dictionary<string, Assembly> LoadedAssemblyCache
