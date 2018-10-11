@@ -1049,8 +1049,7 @@ namespace NuGetAssemblyLoader
 
         public static void AddPathToBeAwareOfWhenSearchingForNativeDlls(string path)
         {
-            EnsureValidCache();
-            var nativePath = Path.Combine(path, AppendProcessArchitecture("lib-native")).ToString();
+            var nativePath = Path.Combine(path, AppendProcessArchitecture("lib-native"));
             if (Directory.Exists(nativePath))
             {
                 var PATH = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
