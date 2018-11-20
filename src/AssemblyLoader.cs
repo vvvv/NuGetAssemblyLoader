@@ -918,6 +918,8 @@ namespace NuGetAssemblyLoader
         {
             // Will probably only work for .NET 4.5 and up :/
             var versionInfo = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
+            if (versionInfo.FileVersion.Contains("NET472"))
+                return new Version(4, 7, 2);
             var buildNumer = int.Parse(versionInfo.FileBuildPart.ToString().Substring(0, 1));
             return new Version(versionInfo.FileMajorPart, versionInfo.FileMinorPart, buildNumer);
         }
