@@ -1,9 +1,14 @@
 {
   "version": "0.1",
-  "buildNumberOffset": -1 
+  "buildNumberOffset": -1
   //todo: wait for nuget fix to allow release-packages to reference prerelease packages
   ,
   "publicReleaseRefSpec": [
-  	"^refs/heads/master$" // we release out of master
-  ]
+    "^refs/heads/master$" // we release out of master
+  ],
+  "cloudBuild": {
+    "buildNumber": {
+      "enabled": true
+    }
+  }
 }
