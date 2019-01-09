@@ -16,23 +16,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="NuGet.Core" Version="2.14.0">
-      <!-- Our virtual package ships it via IncludeReferencedAssembliesInPackage so do not add dependency on it -->
-      <Pack>false</Pack>
-    </PackageReference>
+    <PackageReference Include="NuGet.Core" Version="2.14.0" />
   </ItemGroup>
-  <Target Name="IncludeReferencedAssembliesInPackage" BeforeTargets="GetPackageContents" DependsOnTargets="ResolveAssemblyReferences">
-    <ItemGroup>
-      <PackageFile Include="@(ReferenceCopyLocalPaths)">
-        <Kind>Lib</Kind>
-        <TargetFramework>net461</TargetFramework>
-        <PackagePath>lib\net461\%(Filename)%(Extension)</PackagePath>
-      </PackageFile>
-      <PackageFile Include="@(ReferenceCopyLocalPaths)">
-        <Kind>Lib</Kind>
-        <TargetFramework>net472</TargetFramework>
-        <PackagePath>lib\net472\%(Filename)%(Extension)</PackagePath>
-      </PackageFile>
-    </ItemGroup>
-  </Target>
 </Project>
