@@ -3,6 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net46</TargetFramework>
     <IncludeFrameworkReferencesInPackage>false</IncludeFrameworkReferencesInPackage>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>Loads assemblies from NuGet packages during runtime</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.1.84">
