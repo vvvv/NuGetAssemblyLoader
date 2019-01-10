@@ -6,6 +6,7 @@
     <PackageId>$(AssemblyName)</PackageId>
     <Description>Loads assemblies from NuGet packages during runtime</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <EmitNuSpec>true</EmitNuSpec>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.1.84">

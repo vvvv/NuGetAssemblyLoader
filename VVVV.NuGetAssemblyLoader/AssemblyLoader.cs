@@ -10,7 +10,7 @@ using System.Xml.Linq;
 using System.Timers;
 using System.Collections.Concurrent;
 
-namespace NuGetAssemblyLoader
+namespace VVVV.NuGetAssemblyLoader
 {
     public interface IPackageWithPath : IPackage { string Path { get; } }
 
@@ -65,6 +65,8 @@ namespace NuGetAssemblyLoader
             _packageName = packageName;
             _nuspecFile = nuspecFile;
         }
+
+        public string NuspecFile => _nuspecFile;
 
         public override string Path => _repositoryFileSystem.GetFullPath(_packageName);
 
@@ -370,22 +372,17 @@ namespace NuGetAssemblyLoader
                 if (!hasNuspec)
                 {
                     // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
-                    var buildDir = Path.Combine(dir, "src", "bin", ThisAssembly.AssemblyConfiguration, AssemblyLoader.ExecutingFrameworkShortName);
-                    foreach (var nuspecFile in _fileSystem.GetFiles(buildDir, $"{dir}{Constants.ManifestExtension}"))
-                    {
-                        hasNuspec = true;
-                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
-                        break;
-                    }
-                }
-                if (!hasNuspec)
-                {
                     // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
-                    var buildDir = Path.Combine(dir, "bin", ThisAssembly.AssemblyConfiguration, AssemblyLoader.ExecutingFrameworkShortName);
-                    foreach (var nuspecFile in _fileSystem.GetFiles(buildDir, $"{dir}{Constants.ManifestExtension}"))
+                    var nuspecFiles = _fileSystem.GetDirectories(Path.Combine(dir, "src", "bin"))
+                        .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
+                        .SelectMany(d => _fileSystem.GetDirectories(d))
+                        .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}{Constants.ManifestExtension}"))
+                        .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
+                        .OrderByDescending(f => f.Modified);
+                    foreach (var nuspecFile in nuspecFiles)
                     {
                         hasNuspec = true;
-                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
+                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile.File);
                         break;
                     }
                 }

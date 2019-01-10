@@ -1,7 +1,7 @@
 ﻿using NuGet;
 using System.Text;
 
-namespace NuGetAssemblyLoader
+namespace VVVV.NuGetAssemblyLoader
 {
     public static class PackageHelpers
     {
