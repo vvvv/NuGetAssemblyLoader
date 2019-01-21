@@ -1028,20 +1028,23 @@ namespace VVVV.NuGetAssemblyLoader
         static IEnumerable<string> GetNativePaths(IPackage package)
         {
             var set = new HashSet<string>();
-            foreach (var nativePath in GetNativePaths(package, "lib-native"))
+            foreach (var nativePath in GetNativePaths(package, "lib-native", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
-            foreach (var nativePath in GetNativePaths(package, "NativeDlls"))
+            foreach (var nativePath in GetNativePaths(package, "NativeDlls", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
-            foreach (var nativePath in GetNativePaths(package, "support"))
+            foreach (var nativePath in GetNativePaths(package, Path.Combine("runtimes", "win10-" + (Environment.Is64BitProcess ? "x64" : "x86"), "native"), false))
+                if (set.Add(nativePath))
+                    yield return nativePath;
+            foreach (var nativePath in GetNativePaths(package, "support", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
         }
 
-        static IEnumerable<string> GetNativePaths(IPackage package, string nativeLibBaseDir)
+        static IEnumerable<string> GetNativePaths(IPackage package, string nativeLibBaseDir, bool appendArchitecture)
         {
-            var nativeLibDir = AppendProcessArchitecture(nativeLibBaseDir);
+            var nativeLibDir = appendArchitecture ? AppendProcessArchitecture(nativeLibBaseDir) : nativeLibBaseDir;
             foreach (var nativeFile in package.GetFiles(nativeLibDir).OfType<PhysicalPackageFile>())
                 yield return Path.GetDirectoryName(nativeFile.SourcePath);
         }
