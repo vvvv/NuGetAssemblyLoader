@@ -1034,9 +1034,32 @@ namespace VVVV.NuGetAssemblyLoader
             foreach (var nativePath in GetNativePaths(package, "NativeDlls", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
-            foreach (var nativePath in GetNativePaths(package, Path.Combine("runtimes", "win10-" + (Environment.Is64BitProcess ? "x64" : "x86"), "native"), false))
+
+            var platform = "";
+            var platformFound = false;
+            var osVersion = Environment.OSVersion.Version.ToString();
+            //platforms according to: https://stackoverflow.com/questions/21737985/windows-version-in-c-sharp
+            if (osVersion.StartsWith("10"))
+                platform = "win10";
+            else if (osVersion.StartsWith("6.3"))
+                platform = "win81";
+            else if (osVersion.StartsWith("6.2"))
+                platform = "win8";
+            else if (osVersion.StartsWith("6.1"))
+                platform = "win7";
+
+            foreach (var nativePath in GetNativePaths(package, Path.Combine("runtimes", platform + "-" + (Environment.Is64BitProcess ? "x64" : "x86"), "native"), false))
                 if (set.Add(nativePath))
+                {
+                    platformFound = true;
                     yield return nativePath;
+                }
+
+            if (!platformFound)
+                foreach (var nativePath in GetNativePaths(package, Path.Combine("runtimes", "win-" + (Environment.Is64BitProcess ? "x64" : "x86"), "native"), false))
+                    if (set.Add(nativePath))
+                        yield return nativePath;
+            
             foreach (var nativePath in GetNativePaths(package, "support", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
