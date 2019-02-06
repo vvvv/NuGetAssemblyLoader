@@ -1017,7 +1017,7 @@ namespace VVVV.NuGetAssemblyLoader
             foreach (var nativePath in GetNativePaths(package))
             {
                 // Skip Debug folders as seen in CNTK packages
-                if (nativePath.Contains($"{Path.DirectorySeparatorChar}Debug"))
+                if (nativePath.EndsWith($"{Path.DirectorySeparatorChar}Debug"))
                     continue;
                 var PATH = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
                 if (!PATH.Contains(nativePath))
@@ -1218,6 +1218,7 @@ namespace VVVV.NuGetAssemblyLoader
             }
             return null;
         }
+
 
         public static string GetPathOfPackage(this IPackage package)
         {
