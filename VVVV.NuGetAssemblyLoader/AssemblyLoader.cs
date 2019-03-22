@@ -818,7 +818,7 @@ namespace VVVV.NuGetAssemblyLoader
                     foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
                     {
                         var assemblyName = assembly.GetName();
-                        var localPath = GetLocalPath(assemblyName);
+                        var localPath = GetLocalPath(assembly);
                         if (!string.IsNullOrEmpty(localPath) && !assembly.IsDynamic && !assembly.ReflectionOnly)
                         {
                             Assembly existing;
@@ -1090,9 +1090,9 @@ namespace VVVV.NuGetAssemblyLoader
             var referencedAssemblyName = new AssemblyName(args.Name);
             if (referencedAssemblyName.Name.EndsWith(".resources"))
                 return null;
-            var assemblyName = ProbeAssemblyReference(referencedAssemblyName);
-            if (assemblyName != null)
-                return Assembly.LoadFrom(assemblyName.CodeBase);
+            var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
+            if (assemblyFile != null)
+                return Assembly.LoadFrom(assemblyFile);
             return null;
         }
 
@@ -1101,18 +1101,15 @@ namespace VVVV.NuGetAssemblyLoader
             var referencedAssemblyName = new AssemblyName(args.Name);
             if (referencedAssemblyName.Name.EndsWith(".resources"))
                 return null;
-            var assemblyName = ProbeAssemblyReference(referencedAssemblyName);
-            if (assemblyName != null)
-                return Assembly.ReflectionOnlyLoadFrom(assemblyName.CodeBase);
+            var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
+            if (assemblyFile != null)
+                return Assembly.ReflectionOnlyLoadFrom(assemblyFile);
             return null;
         }
 
-        public static AssemblyName ProbeAssemblyReference(AssemblyName referencedAssemblyName)
+        public static string ProbeAssemblyReference(AssemblyName referencedAssemblyName)
         {
-            var assemblyFile = FindAssemblyFile(referencedAssemblyName.Name);
-            if (assemblyFile != null)
-                return AssemblyName.GetAssemblyName(assemblyFile);
-            return null;
+            return FindAssemblyFile(referencedAssemblyName.Name);
         }
 
         private static IEnumerable<IPackage> GetAllPackages(string packageId)
@@ -1129,7 +1126,7 @@ namespace VVVV.NuGetAssemblyLoader
             // Check the loaded assemblies of the CLR host first - we don't want a mix of assemblies in Load and LoadFrom context from different locations!
             Assembly loadedAssembly;
             if (LoadedAssemblyCache.TryGetValue(assemblyName, out loadedAssembly))
-                return GetLocalPath(loadedAssembly.GetName());
+                return GetLocalPath(loadedAssembly);
 
             // Check our packages
             EnsureValidCache();
@@ -1142,15 +1139,12 @@ namespace VVVV.NuGetAssemblyLoader
             return null;
         }
 
-        /// <summary>
-        /// Returns the CodeBase of the named assembly (which is a URL), except if the URL has the file scheme.
-        /// In that case the URL is converted to a local file path that can be used by System.IO.Path methods.
-        /// </summary>
-        /// <remarks>Taken from https://ccimetadata.codeplex.com </remarks>
-        /// <param name="assemblyName">The name of the assembly whose location is desired.</param>
-        public static string GetLocalPath(AssemblyName assemblyName)
+        public static string GetLocalPath(Assembly assembly)
         {
-            var loc = assemblyName.CodeBase;
+            if (assembly.IsDynamic)
+                return null;
+
+            var loc = assembly.Location;
             if (loc == null) loc = "";
             if (loc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
