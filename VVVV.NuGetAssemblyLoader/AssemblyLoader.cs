@@ -14,6 +14,39 @@ namespace VVVV.NuGetAssemblyLoader
 {
     public interface IPackageWithPath : IPackage { string Path { get; } }
 
+    public abstract class WatchedPackageRepositoryBase : PackageRepositoryBase
+    {
+        readonly FileSystemWatcher _watcher;
+        Timer _delayTimer = new Timer(2000) { AutoReset = false };
+
+        public WatchedPackageRepositoryBase(DirectoryInfo repositoryFolder)
+        {
+            _watcher = new FileSystemWatcher(repositoryFolder.FullName);
+            _watcher.NotifyFilter = NotifyFilters.DirectoryName;
+            _watcher.Created += HandlePathChanged;
+            _watcher.Deleted += HandlePathChanged;
+            _watcher.Changed += HandlePathChanged;
+            _watcher.EnableRaisingEvents = true;
+
+            _delayTimer.Elapsed += _delayTimer_Elapsed;
+
+            void HandlePathChanged(object sender, FileSystemEventArgs e)
+            {
+                _delayTimer.Stop();
+                _delayTimer.Start();
+            }
+
+            void _delayTimer_Elapsed(object sender, ElapsedEventArgs e)
+            {
+                ResetCache();
+
+                AssemblyLoader.InvalidateCache();
+            }
+        }
+
+        protected abstract void ResetCache();
+    }
+
     public abstract class SrcPackage : IPackageWithPath
     {
         public abstract IEnumerable<IPackageAssemblyReference> AssemblyReferences { get; }
@@ -333,16 +366,21 @@ namespace VVVV.NuGetAssemblyLoader
         }
     }
 
-    public class SrcPackageRepository : PackageRepositoryBase
+    public class SrcPackageRepository : WatchedPackageRepositoryBase
     {
         readonly DirectoryInfo _repositoryFolder;
         readonly IFileSystem _fileSystem;
         IQueryable<IPackage> _packages;
 
-        public SrcPackageRepository(DirectoryInfo repositoryFolder)
+        public SrcPackageRepository(DirectoryInfo repositoryFolder) : base(repositoryFolder)
         {
             _repositoryFolder = repositoryFolder;
             _fileSystem = new PhysicalFileSystem(repositoryFolder.FullName);
+        }
+
+        protected override void ResetCache()
+        {
+            _packages = null;
         }
 
         public override string Source => _repositoryFolder.FullName;
@@ -555,38 +593,19 @@ namespace VVVV.NuGetAssemblyLoader
         }
     }
 
-    public class InstalledPackageRepository : PackageRepositoryBase
+    public class InstalledPackageRepository : WatchedPackageRepositoryBase
     {
         readonly IFileSystem _fileSystem;
-        readonly FileSystemWatcher _watcher;
         IQueryable<IPackage> _packages;
-        Timer _delayTimer = new Timer(2000) { AutoReset = false };
 
-        public InstalledPackageRepository(DirectoryInfo repositoryFolder)
+        public InstalledPackageRepository(DirectoryInfo repositoryFolder) : base(repositoryFolder)
         {
             _fileSystem = new PhysicalFileSystem(repositoryFolder.FullName);
-            _watcher = new FileSystemWatcher(repositoryFolder.FullName);
-            _watcher.NotifyFilter = NotifyFilters.DirectoryName;
-            _watcher.Created += HandlePathChanged;
-            _watcher.Deleted += HandlePathChanged;
-            _watcher.Changed += HandlePathChanged;
-            _watcher.EnableRaisingEvents = true;
-
-            _delayTimer.Elapsed += _delayTimer_Elapsed;
         }
 
-        private void HandlePathChanged(object sender, FileSystemEventArgs e)
+        protected override void ResetCache()
         {
-            _delayTimer.Stop();
-            _delayTimer.Start();
-        }
-
-        private void _delayTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            // Reset the cache
             _packages = null;
-
-            AssemblyLoader.InvalidateCache();
         }
 
         public override string Source => _fileSystem.Root;
