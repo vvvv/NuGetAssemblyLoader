@@ -1075,13 +1075,29 @@ namespace VVVV.NuGetAssemblyLoader
                 }
 
             if (!platformFound)
+            {
                 foreach (var nativePath in GetNativePaths(package, Path.Combine("runtimes", "win-" + (Environment.Is64BitProcess ? "x64" : "x86"), "native"), false))
                     if (set.Add(nativePath))
                         yield return nativePath;
+            }
             
             foreach (var nativePath in GetNativePaths(package, "support", true))
                 if (set.Add(nativePath))
                     yield return nativePath;
+
+            // Seen in Microsoft.Azure packages
+            if (Environment.Is64BitProcess)
+            {
+                foreach (var nativePath in GetNativePaths(package, Path.Combine("lib", "native", "amd64", "release"), false))
+                    if (set.Add(nativePath))
+                        yield return nativePath;
+            }
+            else
+            {
+                foreach (var nativePath in GetNativePaths(package, Path.Combine("lib", "native", "x86", "release"), false))
+                    if (set.Add(nativePath))
+                        yield return nativePath;
+            }
         }
 
         static IEnumerable<string> GetNativePaths(IPackage package, string nativeLibBaseDir, bool appendArchitecture)
