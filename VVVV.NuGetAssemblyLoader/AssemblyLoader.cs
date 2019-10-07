@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Xml.Linq;
 using System.Timers;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace VVVV.NuGetAssemblyLoader
 {
@@ -366,87 +367,6 @@ namespace VVVV.NuGetAssemblyLoader
         }
     }
 
-    public class SrcPackageRepository : WatchedPackageRepositoryBase
-    {
-        readonly DirectoryInfo _repositoryFolder;
-        readonly IFileSystem _fileSystem;
-        IQueryable<IPackage> _packages;
-
-        public SrcPackageRepository(DirectoryInfo repositoryFolder) : base(repositoryFolder)
-        {
-            _repositoryFolder = repositoryFolder;
-            _fileSystem = new PhysicalFileSystem(repositoryFolder.FullName);
-        }
-
-        protected override void ResetCache()
-        {
-            _packages = null;
-        }
-
-        public override string Source => _repositoryFolder.FullName;
-
-        public override bool SupportsPrereleasePackages => true;
-
-        public override IQueryable<IPackage> GetPackages()
-        {
-            return Packages;
-        }
-
-        private IQueryable<IPackage> Packages
-        {
-            get
-            {
-                if (_packages == null)
-                    _packages = GetPackagesCore().ToList().AsQueryable();
-                return _packages;
-            }
-        }
-
-        private IEnumerable<IPackage> GetPackagesCore()
-        {
-            foreach (var dir in _fileSystem.GetDirectories(string.Empty))
-            {
-                var hasNuspec = false;
-                if (!hasNuspec)
-                {
-                    // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
-                    // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
-                    var nuspecFiles = _fileSystem.GetDirectories(Path.Combine(dir, "src", "bin"))
-                        .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
-                        .SelectMany(d => _fileSystem.GetDirectories(d))
-                        .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}{Constants.ManifestExtension}"))
-                        .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
-                        .OrderByDescending(f => f.Modified);
-                    foreach (var nuspecFile in nuspecFiles)
-                    {
-                        hasNuspec = true;
-                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile.File);
-                        break;
-                    }
-                }
-                if (!hasNuspec)
-                {
-                    // VL.CoreLib/VL.CoreLib.nusepc
-                    foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
-                    {
-                        hasNuspec = true;
-                        yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
-                        break;
-                    }
-                }
-                if (!hasNuspec)
-                {
-                    foreach (var vlFile in _fileSystem.GetFiles(dir, $"{dir}.vl"))
-                    {
-                        hasNuspec = true;
-                        yield return new SrcPackageWithoutNuspec(_fileSystem, dir, vlFile);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
     public class InstalledNupkgPackage : ZipPackage, IPackageWithPath
     {
         readonly IFileSystem _packageFileSystem;
@@ -593,12 +513,12 @@ namespace VVVV.NuGetAssemblyLoader
         }
     }
 
-    public class InstalledPackageRepository : WatchedPackageRepositoryBase
+    public class LocalPackageRepository : WatchedPackageRepositoryBase
     {
         readonly IFileSystem _fileSystem;
         IQueryable<IPackage> _packages;
 
-        public InstalledPackageRepository(DirectoryInfo repositoryFolder) : base(repositoryFolder)
+        public LocalPackageRepository(DirectoryInfo repositoryFolder) : base(repositoryFolder)
         {
             _fileSystem = new PhysicalFileSystem(repositoryFolder.FullName);
         }
@@ -619,23 +539,67 @@ namespace VVVV.NuGetAssemblyLoader
 
         private IEnumerable<IPackage> GetPackagesCore()
         {
+            var hasVersionRegex = new Regex(@"[0-9]+\.[0-9]+\.[0-9]+");
             foreach (var dir in _fileSystem.GetDirectories(string.Empty))
             {
-                foreach (var file in _fileSystem.GetFiles(dir, "*"))
+                if (hasVersionRegex.IsMatch(dir))
                 {
-                    var pkg = default(IPackage);
-                    var ext = Path.GetExtension(file);
-                    if (ext == Constants.PackageExtension)
-                        pkg = new InstalledNupkgPackage(_fileSystem, dir, file);
-                    else if (ext == Constants.ManifestExtension || ext == $"{Constants.ManifestExtension}1")
-                        pkg = new InstalledNuspecPackage(_fileSystem, dir, file);
-                    if (pkg != null)
+                    foreach (var file in _fileSystem.GetFiles(dir, "*"))
                     {
-                        if (pkg.MinClientVersion != null && Constants.NuGetVersion < pkg.MinClientVersion)
-                            Trace.TraceWarning($"Ignoring package {pkg} because it requires NuGet {pkg.MinClientVersion}");
-                        else
-                            yield return pkg;
-                        break;
+                        var pkg = default(IPackage);
+                        var ext = Path.GetExtension(file);
+                        if (ext == Constants.PackageExtension)
+                            pkg = new InstalledNupkgPackage(_fileSystem, dir, file);
+                        else if (ext == Constants.ManifestExtension || ext == $"{Constants.ManifestExtension}1")
+                            pkg = new InstalledNuspecPackage(_fileSystem, dir, file);
+                        if (pkg != null)
+                        {
+                            if (pkg.MinClientVersion != null && Constants.NuGetVersion < pkg.MinClientVersion)
+                                Trace.TraceWarning($"Ignoring package {pkg} because it requires NuGet {pkg.MinClientVersion}");
+                            else
+                                yield return pkg;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    var hasNuspec = false;
+                    if (!hasNuspec)
+                    {
+                        // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
+                        // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
+                        var nuspecFiles = _fileSystem.GetDirectories(Path.Combine(dir, "src", "bin"))
+                            .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
+                            .SelectMany(d => _fileSystem.GetDirectories(d))
+                            .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}{Constants.ManifestExtension}"))
+                            .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
+                            .OrderByDescending(f => f.Modified);
+                        foreach (var nuspecFile in nuspecFiles)
+                        {
+                            hasNuspec = true;
+                            yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile.File);
+                            break;
+                        }
+                    }
+                    if (!hasNuspec)
+                    {
+                        // VL.CoreLib/VL.CoreLib.nusepc
+                        foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
+                        {
+                            hasNuspec = true;
+                            yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
+                            break;
+                        }
+                    }
+                    if (!hasNuspec)
+                    {
+                        foreach (var vlFile in _fileSystem.GetFiles(dir, $"{dir}.vl"))
+                        {
+                            hasNuspec = true;
+                            yield return new SrcPackageWithoutNuspec(_fileSystem, dir, vlFile);
+                            break;
+                        }
                     }
                 }
             }
@@ -697,19 +661,19 @@ namespace VVVV.NuGetAssemblyLoader
             var key = new PackageKey(packageId, version);
             if (!_packageCache.TryGetValue(key, out result))
             {
-                foreach (var repo in _repository.Repositories.OfType<SrcPackageRepository>())
+                foreach (var repo in _repository.Repositories)
                 {
-                    result = repo.FindPackage(packageId, version);
-                    if (result != null)
-                        break;
-                }
-                if (result == null)
-                {
-                    foreach (var repo in _repository.Repositories.Where(r => !(r is SrcPackageRepository)))
+                    var localResult = repo.FindPackage(packageId, version);
+                    if (localResult is SrcPackage)
                     {
-                        result = repo.FindPackage(packageId, version);
-                        if (result != null)
-                            break;
+                        // We found a source package
+                        result = localResult;
+                        break;
+                    }
+                    else if (localResult != null)
+                    {
+                        // Remember the result but continue looking as there could be a source package hiding
+                        result = localResult;
                     }
                 }
                 _packageCache.Add(key, result);
@@ -719,10 +683,7 @@ namespace VVVV.NuGetAssemblyLoader
 
         public IEnumerable<IPackage> FindPackagesById(string packageId)
         {
-            var result = _repository.Repositories.OfType<SrcPackageRepository>().SelectMany(r => r.FindPackagesById(packageId));
-            if (result.Any())
-                return result;
-            return _repository.FindPackagesById(packageId);
+            return _repository.FindPackagesById(packageId).OrderBy(p => p is SrcPackage ? 0 : 1);
         }
 
         private IEnumerable<IPackage> GetPackagesPreferingSourceOverInstalled()
@@ -746,24 +707,7 @@ namespace VVVV.NuGetAssemblyLoader
     {
         public IPackageRepository CreateRepository(string packageSource)
         {
-            var fs = new PhysicalFileSystem(packageSource);
-            // package-version/package-version.nupkg
-            if (fs.GetDirectories(string.Empty).Any(d => fs.GetFiles(d, $"{d}{Constants.PackageExtension}").Any()))
-                return new InstalledPackageRepository(new DirectoryInfo(packageSource));
-            // package-version/package.nuspec or package-version/package.nuspec1
-            // Look at the first non-empty directory only
-            if (fs.GetDirectories(string.Empty).Where(d => fs.GetFiles(d, "*").Any()).Take(1).Any(d => IsInstalledPackage(fs, d)))
-                return new InstalledPackageRepository(new DirectoryInfo(packageSource));
-            // package/package.nuspec or package/package.vl
-            return new SrcPackageRepository(new DirectoryInfo(packageSource));
-        }
-
-        static bool IsInstalledPackage(PhysicalFileSystem fs, string d)
-        {
-            var nuspecFiles = fs.GetFiles(d, $"*{Constants.ManifestExtension}").Concat(fs.GetFiles(d, $"*{Constants.ManifestExtension}1"));
-            if (nuspecFiles.Any(f => Path.GetFileName(f) != $"{d}{Constants.ManifestExtension}"))
-                return true;
-            return false;
+            return new LocalPackageRepository(new DirectoryInfo(packageSource));
         }
     }
 
