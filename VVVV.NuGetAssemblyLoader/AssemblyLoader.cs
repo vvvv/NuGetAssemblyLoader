@@ -1071,7 +1071,11 @@ namespace VVVV.NuGetAssemblyLoader
                 return null;
             var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
             if (assemblyFile != null)
-                return Assembly.LoadFrom(assemblyFile);
+            {
+                var assemblyName = AssemblyName.GetAssemblyName(assemblyFile);
+                if (AssemblyName.ReferenceMatchesDefinition(referencedAssemblyName, assemblyName))
+                    return Assembly.Load(assemblyName);
+            }
             return null;
         }
 
@@ -1082,7 +1086,11 @@ namespace VVVV.NuGetAssemblyLoader
                 return null;
             var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
             if (assemblyFile != null)
-                return Assembly.ReflectionOnlyLoadFrom(assemblyFile);
+            {
+                var assemblyName = AssemblyName.GetAssemblyName(assemblyFile);
+                if (AssemblyName.ReferenceMatchesDefinition(referencedAssemblyName, assemblyName))
+                    return Assembly.ReflectionOnlyLoadFrom(assemblyFile);
+            }
             return null;
         }
 
@@ -1102,6 +1110,11 @@ namespace VVVV.NuGetAssemblyLoader
 
         public static string FindAssemblyFile(string assemblyName)
         {
+            if (assemblyName.Equals("OpenTK.GLControl", StringComparison.OrdinalIgnoreCase))
+            {
+
+            }
+
             // Check the loaded assemblies of the CLR host first - we don't want a mix of assemblies in Load and LoadFrom context from different locations!
             Assembly loadedAssembly;
             if (LoadedAssemblyCache.TryGetValue(assemblyName, out loadedAssembly))
