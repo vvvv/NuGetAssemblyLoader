@@ -1160,6 +1160,32 @@ namespace VVVV.NuGetAssemblyLoader
             FindFile(fileName, out package);
             return package;
         }
+        public static IPackage FindPackageWithFilePath(string filePath)
+        {
+            IPackage package;
+            KeyValuePair<string, IPackage> result;
+            EnsureValidCache();
+            lock (_fileCache)
+            {
+                if (!_fileCache.TryGetValue(filePath, out result))
+                {
+                    var packageId = GuessPackageId(filePath);
+                    foreach (var p in GetAllPackages(packageId))
+                    {
+                        var files = p.GetFiles().OfType<PhysicalPackageFile>();
+                        foreach (var file in files)
+                        {
+                            if (string.Equals(file.SourcePath, filePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _fileCache.Add(filePath, new KeyValuePair<string, IPackage>(filePath, p));
+                                return p;
+                            }
+                        }
+                    }
+                }
+            }
+            return result.Value;
+        }
 
         public static string FindFile(string fileName, out IPackage package)
         {
