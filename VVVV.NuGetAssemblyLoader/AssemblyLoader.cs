@@ -745,9 +745,9 @@ namespace VVVV.NuGetAssemblyLoader
 
         private const string ResourceAssemblyExtension = ".resources.dll";
         static readonly ConcurrentDictionary<string, IPackage> _packages = new ConcurrentDictionary<string, IPackage>();
-        static readonly Dictionary<string, string> _packageAssemblyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<AssemblyName, string> _packageAssemblyCache = new Dictionary<AssemblyName, string>(AssemblyNameComparer.Default);
         static readonly Dictionary<string, KeyValuePair<string, IPackage>> _fileCache = new Dictionary<string, KeyValuePair<string, IPackage>>(StringComparer.OrdinalIgnoreCase);
-        static Dictionary<string, Assembly> _loadedAssemblyCache;
+        static readonly Dictionary<AssemblyName, Assembly> _assemblyCache = new Dictionary<AssemblyName, Assembly>(AssemblyNameComparer.Default);
         static readonly List<string> _packageRepositories = new List<string>();
         static PreferSourceOverInstalledAggregateRepository _repository;
         static FrameworkName _frameworkName;
@@ -757,48 +757,6 @@ namespace VVVV.NuGetAssemblyLoader
         static AssemblyLoader()
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-            AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
-            AppDomain.CurrentDomain.AssemblyLoad += CurrentDomain_AssemblyLoad;
-        }
-
-        private static void CurrentDomain_AssemblyLoad(object sender, AssemblyLoadEventArgs args)
-        {
-            var assembly = args.LoadedAssembly;
-            if (!assembly.IsDynamic && !assembly.ReflectionOnly)
-            {
-                // Reset the cache
-                _loadedAssemblyCache = null;
-            }
-        }
-
-        static Dictionary<string, Assembly> LoadedAssemblyCache
-        {
-            get
-            {
-                if (_loadedAssemblyCache == null)
-                {
-                    var result = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                    {
-                        var assemblyName = assembly.GetName();
-                        var localPath = GetLocalPath(assembly);
-                        if (!string.IsNullOrEmpty(localPath) && !assembly.IsDynamic && !assembly.ReflectionOnly)
-                        {
-                            Assembly existing;
-                            var key = assemblyName.Name;
-                            if (result.TryGetValue(key, out existing) && assemblyName.Version > existing.GetName().Version)
-                                result[key] = assembly;
-                            else
-                                result[key] = assembly;
-                            var fileName = Path.GetFileName(localPath);
-                            if (!result.ContainsKey(fileName))
-                                result[fileName] = assembly;
-                        }
-                    }
-                    _loadedAssemblyCache = result;
-                }
-                return _loadedAssemblyCache;
-            }
         }
 
         public static List<string> ParseLines(string[] lines, string key)
@@ -922,6 +880,10 @@ namespace VVVV.NuGetAssemblyLoader
             _cacheIsValid = false;
             _packages.Clear();
             _repository = null;
+            lock (_assemblyCache)
+            {
+                _assemblyCache.Clear();
+            }
             CacheInvalidated?.Invoke(null, EventArgs.Empty);
         }
 
@@ -971,11 +933,16 @@ namespace VVVV.NuGetAssemblyLoader
             }
             foreach (var assemblyFile in package.GetCompatibleAssemblyFiles())
             {
-                if (!_packageAssemblyCache.ContainsKey(assemblyFile.Name))
-                    _packageAssemblyCache.Add(assemblyFile.Name, assemblyFile.SourcePath);
-                var assemblyName = Path.GetFileNameWithoutExtension(assemblyFile.Name);
-                if (!_packageAssemblyCache.ContainsKey(assemblyName))
-                    _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
+                try
+                {
+                    var assemblyName = AssemblyName.GetAssemblyName(assemblyFile.SourcePath);
+                    if (!_packageAssemblyCache.ContainsKey(assemblyName))
+                        _packageAssemblyCache.Add(assemblyName, assemblyFile.SourcePath);
+                }
+                catch (Exception)
+                {
+                    // Ignore
+                }
             }
             foreach (var nativePath in GetNativePaths(package))
             {
@@ -1069,34 +1036,17 @@ namespace VVVV.NuGetAssemblyLoader
             var referencedAssemblyName = new AssemblyName(args.Name);
             if (referencedAssemblyName.Name.EndsWith(".resources"))
                 return null;
-            var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
-            if (assemblyFile != null)
-            {
-                var assemblyName = AssemblyName.GetAssemblyName(assemblyFile);
-                if (AssemblyName.ReferenceMatchesDefinition(referencedAssemblyName, assemblyName))
-                    return Assembly.Load(assemblyName);
-            }
-            return null;
+            return ProbeAssemblyReference(referencedAssemblyName, args.RequestingAssembly);
         }
 
-        private static Assembly CurrentDomain_ReflectionOnlyAssemblyResolve(object sender, ResolveEventArgs args)
+        public static Assembly ProbeAssemblyReference(AssemblyName referencedAssemblyName, Assembly requestingAssembly)
         {
-            var referencedAssemblyName = new AssemblyName(args.Name);
-            if (referencedAssemblyName.Name.EndsWith(".resources"))
-                return null;
-            var assemblyFile = ProbeAssemblyReference(referencedAssemblyName);
-            if (assemblyFile != null)
-            {
-                var assemblyName = AssemblyName.GetAssemblyName(assemblyFile);
-                if (AssemblyName.ReferenceMatchesDefinition(referencedAssemblyName, assemblyName))
-                    return Assembly.ReflectionOnlyLoadFrom(assemblyFile);
-            }
-            return null;
-        }
-
-        public static string ProbeAssemblyReference(AssemblyName referencedAssemblyName)
-        {
-            return FindAssemblyFile(referencedAssemblyName.Name);
+            var location = default(string);
+            if (requestingAssembly != null)
+                location = GetLocation(requestingAssembly) ?? GetCodeBase(requestingAssembly);
+            if (location == null)
+                location = GetLocation(typeof(AssemblyLoader).Assembly);
+            return FindAssembly(referencedAssemblyName, Path.GetDirectoryName(location));
         }
 
         private static IEnumerable<IPackage> GetAllPackages(string packageId)
@@ -1108,48 +1058,166 @@ namespace VVVV.NuGetAssemblyLoader
                 yield return p;
         }
 
-        public static string FindAssemblyFile(string assemblyName)
+        public static string FindAssemblyFile(string assemblyFileName, string requestingDirectory = default)
         {
-            if (assemblyName.Equals("OpenTK.GLControl", StringComparison.OrdinalIgnoreCase))
-            {
-
-            }
-
-            // Check the loaded assemblies of the CLR host first - we don't want a mix of assemblies in Load and LoadFrom context from different locations!
-            Assembly loadedAssembly;
-            if (LoadedAssemblyCache.TryGetValue(assemblyName, out loadedAssembly))
-                return GetLocalPath(loadedAssembly);
-
-            // Check our packages
-            EnsureValidCache();
-            lock (_packageAssemblyCache)
-            {
-                string result;
-                if (_packageAssemblyCache.TryGetValue(assemblyName, out result))
-                    return result;
-            }
+            var assembly = FindAssembly(assemblyFileName, requestingDirectory);
+            if (assembly != null)
+                return GetLocation(assembly);
             return null;
         }
 
-        public static string GetLocalPath(Assembly assembly)
+        public static Assembly FindAssembly(string assemblyFileName, string requestingDirectory = default)
+        {
+            var assemblyName = assemblyFileName.IsAssemblyFile() ? Path.GetFileNameWithoutExtension(assemblyFileName) : assemblyFileName;
+            return FindAssembly(new AssemblyName(assemblyName), requestingDirectory);
+        }
+
+        public static Assembly FindAssembly(AssemblyName assemblyName, string requestingDirectory = default)
+        {
+            lock (_assemblyCache)
+            {
+                if (!_assemblyCache.TryGetValue(assemblyName, out var assembly))
+                    _assemblyCache[assemblyName] = assembly = DoFindAssembly(assemblyName, requestingDirectory);
+                return assembly;
+            }
+        }
+
+        static AssemblyName currentlyProbing;
+        static readonly Version EmptyVersion = new Version(0, 0, 0, 0);
+
+        static bool ReferenceMatchesDefinition(AssemblyName reference, AssemblyName definition)
+        {
+            // Check simple name
+            if (!AssemblyName.ReferenceMatchesDefinition(reference, definition))
+                return false;
+
+            // Check if strong check is required
+            if (IsEmptyVersion(reference.Version))
+                return true;
+
+            // From https://github.com/microsoft/vs-mef/blob/master/src/Microsoft.VisualStudio.Composition/ByValueEquality+AssemblyNameComparer.cs
+            // There are some cases where two AssemblyNames who are otherwise equivalent
+            // have a null PublicKey but a correct PublicKeyToken, and vice versa. We should
+            // compare the PublicKeys first, but then fall back to GetPublicKeyToken(), which
+            // will generate a public key token for the AssemblyName that has a public key and
+            // return the public key token for the other AssemblyName.
+            var xPublicKey = reference.GetPublicKey();
+            var yPublicKey = definition.GetPublicKey();
+            if (xPublicKey != null && yPublicKey != null && !BufferComparer.Default.Equals(xPublicKey, yPublicKey))
+                return false;
+
+            // Check public key tokens
+            if (!BufferComparer.Default.Equals(reference.GetPublicKeyToken(), definition.GetPublicKeyToken()))
+                return false;
+
+            // Check culture
+            if (!string.Equals(reference.CultureName, definition.CultureName))
+                return false;
+
+            // Let them match if version of definition is greater or equal to the requested version
+            return reference.Version <= definition.Version;
+        }
+
+        static bool IsEmptyVersion(Version version) => version == null || version == EmptyVersion;
+
+        static Assembly DoFindAssembly(AssemblyName assemblyName, string requestingDirectory = default)
+        {
+            if (currentlyProbing != null && AssemblyNameComparer.Default.Equals(currentlyProbing, assemblyName))
+                return null;
+
+            currentlyProbing = assemblyName;
+
+            try
+            {
+                // Check folder of requesting assembly first
+                if (!string.IsNullOrWhiteSpace(requestingDirectory))
+                {
+                    foreach (var extension in assemblyExtensions)
+                    {
+                        var probeFile = Path.Combine(requestingDirectory, $"{assemblyName.Name}.{extension}");
+                        if (File.Exists(probeFile))
+                        {
+                            var definitionName = AssemblyName.GetAssemblyName(probeFile);
+                            if (ReferenceMatchesDefinition(assemblyName, definitionName))
+                                return Assembly.Load(definitionName);
+                        }
+                    }
+                }
+
+                // Check if caller doesn't care about the version
+                if (IsEmptyVersion(assemblyName.Version))
+                {
+                    try
+                    {
+#pragma warning disable CS0618 // Type or member is obsolete
+                        var assembly = Assembly.LoadWithPartialName(assemblyName.Name);
+#pragma warning restore CS0618 // Type or member is obsolete
+                        if (assembly != null)
+                            return assembly;
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+
+                // Check our packages
+                EnsureValidCache();
+                lock (_packageAssemblyCache)
+                {
+                    string result;
+                    if (_packageAssemblyCache.TryGetValue(assemblyName, out result))
+                    {
+                        assemblyName.CodeBase = result;
+                        return Assembly.Load(assemblyName);
+                    }
+
+                    foreach (var otherAssemblyName in _packageAssemblyCache.Keys)
+                    {
+                        if (ReferenceMatchesDefinition(assemblyName, otherAssemblyName))
+                            return Assembly.Load(otherAssemblyName);
+                    }
+                }
+
+                return null;
+            }
+            finally
+            {
+                currentlyProbing = null;
+            }
+        }
+
+        static readonly string[] assemblyExtensions = new[] { "dll", "exe" };
+
+        public static string GetLocation(Assembly assembly)
         {
             if (assembly.IsDynamic)
                 return null;
 
-            var loc = assembly.Location;
-            if (loc == null) loc = "";
-            if (loc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            return Normalize(assembly.Location);
+        }
+
+        public static string GetCodeBase(Assembly assembly)
+        {
+            return Normalize(assembly.CodeBase);
+        }
+
+        private static string Normalize(string location)
+        {
+            if (string.IsNullOrEmpty(location))
+                return null;
+
+            if (location.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
-                Uri u = new Uri(loc, UriKind.Absolute);
-                loc = u.LocalPath;
+                Uri u = new Uri(location, UriKind.Absolute);
+                return u.LocalPath;
             }
-            return loc;
+            return location;
         }
 
         public static string FindFile(string fileName)
         {
             if (fileName.IsAssemblyFile())
-                return FindAssemblyFile(Path.GetFileNameWithoutExtension(fileName));
+                return FindAssemblyFile(fileName);
             IPackage package;
             return FindFile(fileName, out package);
         }
@@ -1162,7 +1230,6 @@ namespace VVVV.NuGetAssemblyLoader
         }
         public static IPackage FindPackageWithFilePath(string filePath)
         {
-            IPackage package;
             KeyValuePair<string, IPackage> result;
             EnsureValidCache();
             lock (_fileCache)
