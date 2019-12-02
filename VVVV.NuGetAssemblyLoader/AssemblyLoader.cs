@@ -1077,7 +1077,13 @@ namespace VVVV.NuGetAssemblyLoader
             lock (_assemblyCache)
             {
                 if (!_assemblyCache.TryGetValue(assemblyName, out var assembly))
+                {
                     _assemblyCache[assemblyName] = assembly = DoFindAssembly(assemblyName, requestingDirectory);
+                    // Register under actual name too
+                    var actualAssemblyName = assembly?.GetName();
+                    if (actualAssemblyName != null)
+                        _assemblyCache[actualAssemblyName] = assembly;
+                }
                 return assembly;
             }
         }
