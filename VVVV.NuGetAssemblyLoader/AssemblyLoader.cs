@@ -683,7 +683,15 @@ namespace VVVV.NuGetAssemblyLoader
 
         public IEnumerable<IPackage> FindPackagesById(string packageId)
         {
-            return _repository.FindPackagesById(packageId).OrderBy(p => p is SrcPackage ? 0 : 1);
+            foreach (var package in _repository.FindPackagesById(packageId))
+            {
+                if (package is SrcPackage)
+                {
+                    return new[] { package };
+                }
+            }
+
+            return _repository.FindPackagesById(packageId);
         }
 
         private IEnumerable<IPackage> GetPackagesPreferingSourceOverInstalled()
