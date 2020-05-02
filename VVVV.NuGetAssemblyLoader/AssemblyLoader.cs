@@ -125,7 +125,7 @@ namespace VVVV.NuGetAssemblyLoader
                     {
                         _builder = new PackageBuilder(path, NullPropertyProvider.Instance, false);
                     }
-                    catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+                    catch (Exception e)
                     {
                         // Create a dummy
                         _builder = new PackageBuilder();
@@ -569,10 +569,9 @@ namespace VVVV.NuGetAssemblyLoader
                     {
                         // VL.CoreLib/src/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
                         // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
-                        var nuspecFiles = _fileSystem.GetDirectories(Path.Combine(dir, "src", "bin"))
-                            .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
-                            .SelectMany(d => _fileSystem.GetDirectories(d))
-                            .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}{Constants.ManifestExtension}"))
+                        // VL.CoreLib/src/obj/$(Configuration)/VL.CoreLib.VERSION.nuspec
+                        // VL.CoreLib/obj/$(Configuration)/VL.CoreLib.VERSION.nuspec
+                        var nuspecFiles = _fileSystem.GetFiles(dir, $"{dir}*{Constants.ManifestExtension}", recursive: true)
                             .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
                             .OrderByDescending(f => f.Modified);
                         foreach (var nuspecFile in nuspecFiles)
@@ -585,7 +584,7 @@ namespace VVVV.NuGetAssemblyLoader
                     if (!hasNuspec)
                     {
                         // VL.CoreLib/VL.CoreLib.nusepc
-                        foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
+                        foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}*{Constants.ManifestExtension}"))
                         {
                             hasNuspec = true;
                             yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
