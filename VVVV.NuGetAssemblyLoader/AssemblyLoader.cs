@@ -123,7 +123,13 @@ namespace VVVV.NuGetAssemblyLoader
                     var path = _repositoryFileSystem.GetFullPath(_nuspecFile);
                     try
                     {
-                        _builder = new PackageBuilder(path, NullPropertyProvider.Instance, false);
+                        _builder = new PackageBuilder();
+                        using (var s = File.OpenRead(path))
+                        {
+                            var m = Manifest.ReadFrom(s, validateSchema: false);
+                            _builder.Populate(m.Metadata);
+                            _builder.PopulateFiles(path, m.Files);
+                        }
                     }
                     catch (Exception e)
                     {
@@ -578,8 +584,7 @@ namespace VVVV.NuGetAssemblyLoader
                             .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
                             .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "src", "obj")))
                             .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "obj")))
-                            .SelectMany(d => _fileSystem.GetDirectories(d))
-                            .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}*{Constants.ManifestExtension}"))
+                            .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}*{Constants.ManifestExtension}", recursive: true))
                             .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
                             .OrderByDescending(f => f.Modified);
                         foreach (var nuspecFile in nuspecFiles)
