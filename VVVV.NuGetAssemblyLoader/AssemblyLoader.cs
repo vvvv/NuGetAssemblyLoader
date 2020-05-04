@@ -571,7 +571,15 @@ namespace VVVV.NuGetAssemblyLoader
                         // VL.CoreLib/bin/$(Configuration)/$(TFM)/VL.CoreLib.nuspec
                         // VL.CoreLib/src/obj/$(Configuration)/VL.CoreLib.VERSION.nuspec
                         // VL.CoreLib/obj/$(Configuration)/VL.CoreLib.VERSION.nuspec
-                        var nuspecFiles = _fileSystem.GetFiles(dir, $"{dir}*{Constants.ManifestExtension}", recursive: true)
+                        // But not something like
+                        // VL.Stride/packages/VL.Stride.EffectLib/src/obj/$(Configuration)/VL.Stride.EffectLib.VERSION.nuspec
+                        // Therefor only look in specific subfolders
+                        var nuspecFiles = _fileSystem.GetDirectories(Path.Combine(dir, "src", "bin"))
+                            .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "bin")))
+                            .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "src", "obj")))
+                            .Concat(_fileSystem.GetDirectories(Path.Combine(dir, "obj")))
+                            .SelectMany(d => _fileSystem.GetDirectories(d))
+                            .SelectMany(d => _fileSystem.GetFiles(d, $"{dir}*{Constants.ManifestExtension}"))
                             .Select(f => new { File = f, Modified = File.GetLastWriteTime(_fileSystem.GetFullPath(f)) })
                             .OrderByDescending(f => f.Modified);
                         foreach (var nuspecFile in nuspecFiles)
@@ -584,7 +592,7 @@ namespace VVVV.NuGetAssemblyLoader
                     if (!hasNuspec)
                     {
                         // VL.CoreLib/VL.CoreLib.nusepc
-                        foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}*{Constants.ManifestExtension}"))
+                        foreach (var nuspecFile in _fileSystem.GetFiles(dir, $"{dir}{Constants.ManifestExtension}"))
                         {
                             hasNuspec = true;
                             yield return new SrcPackageWithNuspec(_fileSystem, dir, nuspecFile);
