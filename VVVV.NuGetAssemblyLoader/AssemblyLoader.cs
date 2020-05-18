@@ -108,9 +108,12 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_files == null)
-                    _files = GetFilesCore().ToList();
-                return _files;
+                lock (this)
+                {
+                    if (_files == null)
+                        _files = GetFilesCore().ToList();
+                    return _files;
+                }
             }
         }
 
@@ -261,9 +264,12 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_files == null)
-                    _files = GetFilesCore().ToList();
-                return _files;
+                lock (this)
+                {
+                    if (_files == null)
+                        _files = GetFilesCore().ToList();
+                    return _files;
+                }
             }
         }
 
@@ -390,9 +396,12 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_files == null)
-                    _files = GetFilesCore().ToList();
-                return _files;
+                lock (this)
+                {
+                    if (_files == null)
+                        _files = GetFilesCore().ToList();
+                    return _files;
+                }
             }
         }
 
@@ -459,9 +468,12 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_files == null)
-                    _files = GetFilesCore().ToList();
-                return _files;
+                lock (this)
+                {
+                    if (_files == null)
+                        _files = GetFilesCore().ToList();
+                    return _files;
+                }
             }
         }
 
