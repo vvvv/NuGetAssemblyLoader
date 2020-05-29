@@ -121,27 +121,31 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_builder == null)
+                lock (this)
                 {
-                    var path = _repositoryFileSystem.GetFullPath(_nuspecFile);
-                    try
+                    if (_builder == null)
                     {
-                        _builder = new PackageBuilder();
-                        using (var s = File.OpenRead(path))
+                        var path = _repositoryFileSystem.GetFullPath(_nuspecFile);
+                        try
                         {
-                            var m = Manifest.ReadFrom(s, validateSchema: false);
-                            _builder.Populate(m.Metadata);
-                            _builder.PopulateFiles(path, m.Files);
+                            var builder = new PackageBuilder();
+                            using (var s = File.OpenRead(path))
+                            {
+                                var m = Manifest.ReadFrom(s, validateSchema: false);
+                                builder.Populate(m.Metadata);
+                                builder.PopulateFiles(path, m.Files);
+                            }
+                            _builder = builder;
+                        }
+                        catch (Exception e)
+                        {
+                            // Create a dummy
+                            _builder = new PackageBuilder();
+                            Trace.TraceWarning($"The NuSpec file {path} seems to be corrupt: {e.Message}");
                         }
                     }
-                    catch (Exception e)
-                    {
-                        // Create a dummy
-                        _builder = new PackageBuilder();
-                        Trace.TraceWarning($"The NuSpec file {path} seems to be corrupt: {e.Message}");
-                    }
+                    return _builder;
                 }
-                return _builder;
             }
         }
 
@@ -550,9 +554,12 @@ namespace VVVV.NuGetAssemblyLoader
         public override bool SupportsPrereleasePackages => true;
         public override IQueryable<IPackage> GetPackages()
         {
-            if (_packages == null)
-                _packages = GetPackagesCore().ToList().AsQueryable();
-            return _packages;
+            lock (this)
+            {
+                if (_packages == null)
+                    _packages = GetPackagesCore().ToList().AsQueryable();
+                return _packages;
+            }
         }
 
         private IEnumerable<IPackage> GetPackagesCore()
@@ -819,9 +826,7 @@ namespace VVVV.NuGetAssemblyLoader
         {
             get
             {
-                if (_repository == null)
-                    _repository = new PreferSourceOverInstalledAggregateRepository(new RepositoryFactory(), _packageRepositories);
-                return _repository;
+                return _repository ?? (_repository = new PreferSourceOverInstalledAggregateRepository(new RepositoryFactory(), _packageRepositories));
             }
         }
 
