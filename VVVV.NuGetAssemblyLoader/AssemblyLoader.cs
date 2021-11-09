@@ -1369,7 +1369,7 @@ namespace VVVV.NuGetAssemblyLoader
                 return compatibleFiles.Where(f => IsSupported(f.TargetFramework));
             if (VersionUtility.TryGetCompatibleItems(VersionUtility.DefaultTargetFramework, files, out compatibleFiles))
                 return compatibleFiles.Where(f => IsSupported(f.TargetFramework));
-            return files;
+            return files.Where(f => IsSupported(f.TargetFramework));
         }
 
         public static string ReadArgument(this CustomAttributeData attribute, int index)
