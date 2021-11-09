@@ -1366,9 +1366,9 @@ namespace VVVV.NuGetAssemblyLoader
             IEnumerable<PhysicalPackageAssemblyReference> compatibleFiles;
             var files = package.AssemblyReferences.OfType<PhysicalPackageAssemblyReference>();
             if (VersionUtility.TryGetCompatibleItems(ExecutingFrameworkName, files, out compatibleFiles))
-                return compatibleFiles;
+                return compatibleFiles.Where(f => IsSupported(f.TargetFramework));
             if (VersionUtility.TryGetCompatibleItems(VersionUtility.DefaultTargetFramework, files, out compatibleFiles))
-                return compatibleFiles;
+                return compatibleFiles.Where(f => IsSupported(f.TargetFramework));
             return files;
         }
 
@@ -1386,6 +1386,17 @@ namespace VVVV.NuGetAssemblyLoader
         {
             return !filePath.EndsWith(ResourceAssemblyExtension, StringComparison.OrdinalIgnoreCase) &&
                 Constants.AssemblyReferencesExtensions.Contains(Path.GetExtension(filePath), StringComparer.OrdinalIgnoreCase);
+        }
+
+        static bool IsSupported(FrameworkName frameworkName)
+        {
+            if (frameworkName is null)
+                return true;
+            if (frameworkName.Identifier == ".NETStandard")
+                return frameworkName.Version < new Version(2, 1);
+            if (frameworkName.Identifier == ".NETFramework")
+                return frameworkName.Version < new Version(5, 0);
+            return true;
         }
     }
 }
